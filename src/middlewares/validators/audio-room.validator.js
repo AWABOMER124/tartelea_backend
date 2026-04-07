@@ -16,6 +16,7 @@ const joinAudioRoomSchema = z.object({
   }),
 });
 
+ codex/assess-registration-and-login-issues-v0dk1t
 const leaveAudioRoomSchema = z.object({
   params: z.object({
     id: z.string().uuid(),
@@ -34,3 +35,10 @@ module.exports = {
   leaveAudioRoomSchema,
   roomTokenSchema,
 };
+
+module.exports = {
+  createAudioRoomSchema,
+  joinAudioRoomSchema,
+};
+
+ main

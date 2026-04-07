@@ -54,6 +54,7 @@ class AudioRoom {
 
     return room.rows[0];
   }
+ codex/assess-registration-and-login-issues-v0dk1t
 
   static async leave({ roomId, userId }) {
     await query(
@@ -96,3 +97,9 @@ class AudioRoom {
 }
 
 module.exports = AudioRoom;
+
+}
+
+module.exports = AudioRoom;
+
+ main
