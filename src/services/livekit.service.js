@@ -7,16 +7,17 @@ const env = require('../config/env');
  * @param {string} participantName - The name of the participant
  * @returns {string} The generated access token
  */
-const generateToken = async (roomName, participantName) => {
+const generateToken = async ({ roomName, identity, canPublish = false, canSubscribe = true, metadata = {} }) => {
     const at = new AccessToken(env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET, {
-        identity: participantName,
+        identity: String(identity),
+        metadata: JSON.stringify(metadata),
     });
     
     at.addGrant({ 
         roomJoin: true, 
         room: roomName,
-        canPublish: true,
-        canSubscribe: true,
+        canPublish,
+        canSubscribe,
     });
 
     return await at.toJwt();

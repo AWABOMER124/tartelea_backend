@@ -115,6 +115,15 @@ CREATE TABLE IF NOT EXISTS audio_rooms (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS audio_room_participants (
+    room_id UUID NOT NULL REFERENCES audio_rooms(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role TEXT NOT NULL DEFAULT 'listener',
+    joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    left_at TIMESTAMP WITH TIME ZONE,
+    PRIMARY KEY (room_id, user_id)
+);
+
 -- Subscriptions
 CREATE TABLE IF NOT EXISTS subscriptions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
