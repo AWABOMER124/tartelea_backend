@@ -1,6 +1,12 @@
 const AudioRoom = require('../models/AudioRoom');
 const { success } = require('../utils/response');
+ codex/assess-registration-and-login-issues-1jnr5s
 const livekitService = require('../services/livekit.service');
+
+ codex/assess-registration-and-login-issues-v0dk1t
+const livekitService = require('../services/livekit.service');
+ main
+ main
 
 class AudioRoomController {
   static async create(req, res, next) {
@@ -44,6 +50,10 @@ class AudioRoomController {
       next(err);
     }
   }
+ codex/assess-registration-and-login-issues-1jnr5s
+
+ codex/assess-registration-and-login-issues-v0dk1t
+ main
 
   static async leave(req, res, next) {
     try {
@@ -93,3 +103,12 @@ class AudioRoomController {
 }
 
 module.exports = AudioRoomController;
+ codex/assess-registration-and-login-issues-1jnr5s
+
+
+}
+
+module.exports = AudioRoomController;
+
+ main
+ main
