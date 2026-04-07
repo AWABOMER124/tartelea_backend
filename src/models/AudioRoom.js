@@ -54,7 +54,52 @@ class AudioRoom {
 
     return room.rows[0];
   }
+ codex/assess-registration-and-login-issues-v0dk1t
+
+  static async leave({ roomId, userId }) {
+    await query(
+      `
+      UPDATE audio_room_participants
+      SET left_at = NOW()
+      WHERE room_id = $1 AND user_id = $2
+      `,
+      [roomId, userId]
+    );
+
+    const room = await query(
+      `
+      UPDATE audio_rooms
+      SET participants_count = (
+        SELECT COUNT(*) FROM audio_room_participants
+        WHERE room_id = $1 AND left_at IS NULL
+      )
+      WHERE id = $1
+      RETURNING *
+      `,
+      [roomId]
+    );
+
+    return room.rows[0];
+  }
+
+  static async getParticipantRole({ roomId, userId }) {
+    const result = await query(
+      `
+      SELECT role
+      FROM audio_room_participants
+      WHERE room_id = $1 AND user_id = $2 AND left_at IS NULL
+      `,
+      [roomId, userId]
+    );
+
+    return result.rows[0]?.role || null;
+  }
 }
 
 module.exports = AudioRoom;
 
+}
+
+module.exports = AudioRoom;
+
+ main
