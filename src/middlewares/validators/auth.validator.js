@@ -16,6 +16,13 @@ const loginSchema = z.object({
   }),
 });
 
+const verifyEmailSchema = z.object({
+  body: z.object({
+    email: z.string().email(),
+    code: z.string().length(6),
+  }),
+});
+
 const googleLoginSchema = z.object({
   body: z.object({
     idToken: z.string(),
@@ -37,6 +44,7 @@ const resetPasswordSchema = z.object({
 
 module.exports = {
   signupSchema,
+  verifyEmailSchema,
   loginSchema,
   googleLoginSchema,
   forgotPasswordSchema,
