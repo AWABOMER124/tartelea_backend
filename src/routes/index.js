@@ -7,6 +7,7 @@ const subscriptionRoutes = require('./subscription.routes');
 const contentRoutes = require('./content.routes');
 const mediaRoutes = require('./media.routes');
 const livekitRoutes = require('./livekit.routes');
+const audioRoomRoutes = require('./audio-room.routes');
 
 const router = express.Router();
 
@@ -29,5 +30,6 @@ router.use('/subscriptions', subscriptionRoutes);
 router.use('/contents', contentRoutes);
 router.use('/media', mediaRoutes);
 router.use('/livekit', livekitRoutes);
+router.use('/audio-rooms', audioRoomRoutes);
 
 module.exports = router;

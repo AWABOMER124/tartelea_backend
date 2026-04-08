@@ -6,14 +6,22 @@ const livekitService = require('../services/livekit.service');
  * @param {import('express').Response} res
  */
 const getToken = async (req, res) => {
-    const { roomName, participantName } = req.body;
-    
-    if (!roomName || !participantName) {
-        return res.status(400).json({ error: 'roomName and participantName are required' });
+    const { roomName, role = 'listener' } = req.body;
+    const userId = req.user?.id;
+
+    if (!roomName || !userId) {
+        return res.status(400).json({ error: 'roomName and authenticated user are required' });
     }
 
     try {
-        const token = await livekitService.generateToken(roomName, participantName);
+        const canPublish = ['speaker', 'moderator', 'host'].includes(role);
+        const token = await livekitService.generateToken({
+            roomName,
+            identity: userId,
+            canPublish,
+            canSubscribe: true,
+            metadata: { role },
+        });
         res.json({ token });
     } catch (error) {
         console.error('Error generating LiveKit token:', error);

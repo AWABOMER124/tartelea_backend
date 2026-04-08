@@ -1,14 +1,15 @@
 const { query } = require('../db');
 
 class Post {
-  static async findAll() {
+  static async findAll({ limit = 20, offset = 0 } = {}) {
     const sql = `
       SELECT p.*, pr.full_name as author_name 
       FROM posts p 
       LEFT JOIN profiles pr ON p.author_id = pr.id 
       ORDER BY p.created_at DESC
+      LIMIT $1 OFFSET $2
     `;
-    const result = await query(sql);
+    const result = await query(sql, [limit, offset]);
     return result.rows;
   }
 
@@ -37,7 +38,7 @@ class Post {
   static async like(id) {
     const sql = 'UPDATE posts SET likes_count = likes_count + 1 WHERE id = $1 RETURNING likes_count';
     const result = await query(sql, [id]);
-    return result.rows[0];
+    return result.rows[0] || null;
   }
 }
 
