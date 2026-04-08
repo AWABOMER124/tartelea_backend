@@ -5,7 +5,7 @@ class Comment {
     const sql = `
       SELECT c.*, pr.full_name as author_name 
       FROM comments c 
-      JOIN profiles pr ON c.author_id = pr.id 
+      LEFT JOIN profiles pr ON c.author_id = pr.id 
       WHERE c.post_id = $1 
       ORDER BY c.created_at ASC
     `;
