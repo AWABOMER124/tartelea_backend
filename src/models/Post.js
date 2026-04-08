@@ -1,15 +1,17 @@
 const { query } = require('../db');
 
 class Post {
-  static async findAll({ limit = 20, offset = 0 } = {}) {
+  static async findAll({ limit = 20, offset = 0, category } = {}) {
+    const params = [];
     const sql = `
       SELECT p.*, pr.full_name as author_name 
       FROM posts p 
       LEFT JOIN profiles pr ON p.author_id = pr.id 
+      ${category ? `WHERE p.category = $${params.push(category)}` : ''}
       ORDER BY p.created_at DESC
-      LIMIT $1 OFFSET $2
+      LIMIT $${params.push(limit)} OFFSET $${params.push(offset)}
     `;
-    const result = await query(sql, [limit, offset]);
+    const result = await query(sql, params);
     return result.rows;
   }
 

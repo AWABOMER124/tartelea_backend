@@ -2,11 +2,11 @@ const { query } = require('../db');
 
 class Content {
   static async findAll(filters = {}) {
-    const { category, type } = filters;
+    const { category, type, is_sudan_awareness } = filters;
     let sql = 'SELECT * FROM contents';
     const params = [];
 
-    if (category || type) {
+    if (category || type || is_sudan_awareness !== undefined) {
       sql += ' WHERE';
       if (category) {
         params.push(category);
@@ -16,6 +16,11 @@ class Content {
         if (params.length > 0) sql += ' AND';
         params.push(type);
         sql += ` type = $${params.length}`;
+      }
+      if (is_sudan_awareness !== undefined) {
+        if (params.length > 0) sql += ' AND';
+        params.push(is_sudan_awareness === 'true' || is_sudan_awareness === true);
+        sql += ` is_sudan_awareness = $${params.length}`;
       }
     }
 

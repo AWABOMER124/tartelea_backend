@@ -12,7 +12,8 @@ router.get('/', async (req, res, next) => {
   try {
     const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
     const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
-    const posts = await Post.findAll({ limit, offset });
+    const category = typeof req.query.category === 'string' ? req.query.category : undefined;
+    const posts = await Post.findAll({ limit, offset, category });
     return success(res, { posts, pagination: { limit, offset } });
   } catch (err) {
     next(err);
