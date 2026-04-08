@@ -20,14 +20,14 @@ const pool = new Pool(poolConfig);
 const dbTarget = env.DATABASE_URL
   ? 'DATABASE_URL'
   : `${env.DB_USER}@${env.DB_HOST}:${env.DB_PORT}/${env.DB_NAME}`;
-console.log(`🔗 [DB] Attempting connection: ${dbTarget}`);
+logger.debug('Attempting database connection', { target: dbTarget });
 
 pool.on('connect', () => {
-  logger.info('✅ Successfully connected to the database.');
+  logger.info('Successfully connected to the database.');
 });
 
 pool.on('error', (err) => {
-  logger.error('❌ Unexpected database error on idle client:', err);
+  logger.error('Unexpected database error on idle client.', { error: err.message });
   process.exit(-1);
 });
 

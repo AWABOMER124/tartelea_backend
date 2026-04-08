@@ -11,13 +11,14 @@ const logger = require('./utils/logger');
 const env = require('./config/env');
 
 const app = express();
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
 
 const allowedOrigins = env.ALLOWED_ORIGINS
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
 
-// 1. MUST BE FIRST: Global CORS
 app.use(
   cors({
     origin(origin, callback) {
@@ -32,48 +33,46 @@ app.use(
   })
 );
 
-// --- Monitoring Middleware (Debug Only) ---
-app.use((req, res, next) => {
-  console.log(`📡 [${new Date().toISOString()}] ${req.method} ${req.url}`);
-  next();
-});
+if (env.NODE_ENV === 'development') {
+  app.use((req, res, next) => {
+    logger.debug('Incoming request', {
+      method: req.method,
+      path: req.originalUrl,
+      timestamp: new Date().toISOString(),
+    });
+    next();
+  });
 
-// Security Middlewares
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
+  app.use(morgan('dev'));
+}
 
-// Rate Limiting
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
+
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // relaxed for production mobile users
+  windowMs: 15 * 60 * 1000,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
 });
 app.use('/api/v1', limiter);
 
-// Log requests in development
-if (env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
-}
-
-// Global Middlewares
 app.use(compression());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Static files
 const uploadsPath = path.join(__dirname, '../uploads');
 if (!fs.existsSync(uploadsPath)) {
   fs.mkdirSync(uploadsPath, { recursive: true });
 }
 app.use('/uploads', express.static(uploadsPath));
 
-// Routes
 const routes = require('./routes');
 app.use('/api/v1', routes);
 
-// Global Error Handler
 app.use(errorHandler);
 
 module.exports = app;

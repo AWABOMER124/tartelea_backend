@@ -1,20 +1,52 @@
-const { query } = require('../db');
+const { connect, query } = require('../db');
 
 class AudioRoom {
   static async create({ title, description, hostId }) {
-    const sql = `
-      INSERT INTO audio_rooms (title, description, created_by, status, participants_count)
-      VALUES ($1, $2, $3, 'live', 1)
-      RETURNING *
-    `;
-    const result = await query(sql, [title, description || null, hostId]);
-    return result.rows[0];
+    const client = await connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const roomResult = await client.query(
+        `
+        INSERT INTO audio_rooms (title, description, created_by, status, participants_count)
+        VALUES ($1, $2, $3, 'live', 1)
+        RETURNING *
+        `,
+        [title, description || null, hostId]
+      );
+
+      const room = roomResult.rows[0];
+
+      await client.query(
+        `
+        INSERT INTO audio_room_participants (room_id, user_id, role, joined_at, left_at)
+        VALUES ($1, $2, 'host', NOW(), NULL)
+        ON CONFLICT (room_id, user_id)
+        DO UPDATE SET role = 'host', left_at = NULL
+        `,
+        [room.id, hostId]
+      );
+
+      await client.query('COMMIT');
+      return room;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   static async findLive() {
     const sql = `
-      SELECT ar.*
+      SELECT
+        ar.*,
+        COALESCE(p.full_name, u.email, 'Room Host') AS host_name,
+        p.avatar_url AS host_avatar
       FROM audio_rooms ar
+      LEFT JOIN users u ON ar.created_by = u.id
+      LEFT JOIN profiles p ON ar.created_by = p.id
       WHERE ar.status = 'live'
       ORDER BY ar.created_at DESC
       LIMIT 100
@@ -94,6 +126,19 @@ class AudioRoom {
     );
 
     return result.rows[0]?.role || null;
+  }
+
+  static async isHost({ roomId, userId }) {
+    const result = await query(
+      `
+      SELECT 1
+      FROM audio_rooms
+      WHERE id = $1 AND created_by = $2
+      `,
+      [roomId, userId]
+    );
+
+    return result.rowCount > 0;
   }
 }
 

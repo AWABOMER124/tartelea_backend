@@ -4,7 +4,7 @@ require('dotenv').config();
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.string().default('3000'),
-  DATABASE_URL: z.string().optional(), // For platforms like Dokploy/Heroku
+  DATABASE_URL: z.string().optional(),
   DATABASE_SSL: z.string().optional(),
   DB_HOST: z.string().default('localhost'),
   DB_PORT: z.string().default('5432'),
@@ -25,7 +25,7 @@ const envSchema = z.object({
 const result = envSchema.safeParse(process.env);
 
 if (!result.success) {
-  console.error('❌ Invalid environment variables:', result.error.format());
+  console.error('Invalid environment variables:', result.error.format());
   process.exit(1);
 }
 

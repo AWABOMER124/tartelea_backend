@@ -6,8 +6,9 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node --test test/**/*.test.js",
-    "test:unit": "node --test test/**/*.test.js"
+    "setup:db": "node scripts/setup_db.js",
+    "test": "node --require ./test/setup-env.js --test test/**/*.test.js",
+    "test:unit": "node --require ./test/setup-env.js --test test/**/*.test.js"
   },
   "keywords": [],
   "author": "",

@@ -70,13 +70,24 @@ class AudioRoomController {
         return res.status(404).json({ success: false, message: 'الغرفة غير موجودة' });
       }
 
-      const role = await AudioRoom.getParticipantRole({
+      let role = await AudioRoom.getParticipantRole({
         roomId: req.params.id,
         userId: req.user.id,
       });
 
+      if (!role) {
+        const isHost = await AudioRoom.isHost({
+          roomId: req.params.id,
+          userId: req.user.id,
+        });
+        if (isHost) {
+          role = 'host';
+        }
+      }
+
       const effectiveRole = role || 'listener';
       const canPublish = ['speaker', 'moderator', 'host'].includes(effectiveRole);
+
       const token = await livekitService.generateToken({
         roomName: req.params.id,
         identity: req.user.id,
