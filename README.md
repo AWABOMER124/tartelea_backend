@@ -38,6 +38,10 @@ A production-ready, modular SaaS backend for the Tartelea Mobile Application.
    ```bash
    psql -U your_user -d your_db -f schema.sql
    ```
+   Or run the setup script, which also uses `backend/schema.sql` as the single schema source:
+   ```bash
+   node scripts/setup_db.js
+   ```
 
 4. **Start Development Server**:
    ```bash

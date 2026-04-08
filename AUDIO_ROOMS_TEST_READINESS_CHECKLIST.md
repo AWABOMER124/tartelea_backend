@@ -10,7 +10,7 @@
 ### 1.1 توحيد الـ Schema قبل أي اختبار
 > مهم جدًا: يوجد ملفا schema في المشروع، ويجب اختيار مصدر واحد للتشغيل في بيئة الاختبار.
 
-- اعتمد `src/db/schema.sql` كمرجع اختبار محلي.
+- اعتمد `backend/schema.sql` كمصدر الحقيقة الوحيد للسكيمة.
 - تأكد أن الجداول موجودة:
   - `users`, `user_roles`, `profiles`
   - `audio_rooms`, `audio_room_participants`
