@@ -1,11 +1,11 @@
 const AuthService = require('../services/auth.service');
-const { success, error } = require('../utils/response');
+const { success } = require('../utils/response');
 
 class AuthController {
   static async signup(req, res, next) {
     try {
       const result = await AuthService.signup(req.body);
-      return success(res, result, 'تم إرسال كود التحقق إلى بريدك الإلكتروني', 201);
+      return success(res, result, 'Verification code sent to your email', 201);
     } catch (err) {
       next(err);
     }
@@ -15,7 +15,7 @@ class AuthController {
     try {
       const { email, code } = req.body;
       const result = await AuthService.verifyEmail(email, code);
-      return success(res, result, 'تم تفعيل الحساب بنجاح');
+      return success(res, result, 'Email verified successfully');
     } catch (err) {
       next(err);
     }
@@ -25,7 +25,7 @@ class AuthController {
     try {
       const { email, password } = req.body;
       const result = await AuthService.login(email, password);
-      return success(res, result, 'تم تسجيل الدخول بنجاح');
+      return success(res, result, 'Login successful');
     } catch (err) {
       next(err);
     }
@@ -35,7 +35,7 @@ class AuthController {
     try {
       const { idToken } = req.body;
       const result = await AuthService.googleLogin(idToken);
-      return success(res, result, 'تم تسجيل الدخول عبر قوقل بنجاح');
+      return success(res, result, 'Google login successful');
     } catch (err) {
       next(err);
     }
@@ -45,7 +45,7 @@ class AuthController {
     try {
       const { email } = req.body;
       const result = await AuthService.forgotPassword(email);
-      return success(res, result, 'تم إرسال كود استعادة كلمة المرور');
+      return success(res, result, 'Password reset code sent to your email');
     } catch (err) {
       next(err);
     }
@@ -55,7 +55,7 @@ class AuthController {
     try {
       const { otp, newPassword } = req.body;
       const result = await AuthService.resetPassword(otp, newPassword);
-      return success(res, result, 'تم تغيير كلمة المرور بنجاح');
+      return success(res, result, 'Password reset successful');
     } catch (err) {
       next(err);
     }
@@ -65,8 +65,8 @@ class AuthController {
     try {
       const result = await AuthService.me(req.user.id);
       return success(res, result);
-    } catch (e) {
-      next(e);
+    } catch (err) {
+      next(err);
     }
   }
 }

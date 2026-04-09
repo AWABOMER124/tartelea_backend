@@ -6,46 +6,71 @@ const Profile = require('../models/Profile');
 const EmailService = require('./email.service');
 const { connect } = require('../db');
 const env = require('../config/env');
-
+const { httpError } = require('../utils/httpError');
 const logger = require('../utils/logger');
+
 const googleClient = new OAuth2Client(env.GOOGLE_CLIENT_ID);
+
+const normalizeEmail = (email) => email.trim().toLowerCase();
 
 class AuthService {
   static async signup(data) {
-    const { email, password, full_name, country } = data;
+    const email = normalizeEmail(data.email);
+    const password = data.password;
+    const fullName = data.full_name?.trim() || null;
+    const country = data.country?.trim() || null;
     const client = await connect();
 
     try {
       await client.query('BEGIN');
 
-      // Check if user already exists
       const existingUser = await User.findByEmail(email);
       if (existingUser) {
-        throw new Error('Email already registered');
+        if (this._isGoogleAccount(existingUser)) {
+          throw httpError(
+            409,
+            'This email is already linked to Google sign-in. Please continue with Google.',
+            'GOOGLE_SIGN_IN_REQUIRED'
+          );
+        }
+
+        if (existingUser.is_verified) {
+          throw httpError(409, 'Email already registered', 'EMAIL_ALREADY_REGISTERED');
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await User.updatePassword(client, existingUser.id, hashedPassword);
+        await Profile.upsert(client, existingUser.id, email, fullName, null, country);
+        await User.assignRole(client, existingUser.id, 'student');
+        await this._issueVerificationCode(client, existingUser.id, email);
+        await client.query('COMMIT');
+
+        return {
+          success: true,
+          message: 'Verification code resent to your email',
+          email,
+          needsVerification: true,
+        };
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
       const user = await User.create(client, email, hashedPassword);
-      const profile = await Profile.create(client, user.id, email, full_name, null, country);
+      await Profile.upsert(client, user.id, email, fullName, null, country);
       await User.assignRole(client, user.id, 'student');
-
-      // 🛑 Professional Verification Step:
-      const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
-      await User.saveVerificationCode(client, user.id, otp);
-      await EmailService.sendVerificationCode(email, otp);
+      await this._issueVerificationCode(client, user.id, email);
 
       await client.query('COMMIT');
 
-      return { 
-        success: true, 
+      return {
+        success: true,
         message: 'Verification code sent to your email',
-        email: email,
-        needsVerification: true 
+        email,
+        needsVerification: true,
       };
     } catch (err) {
       await client.query('ROLLBACK');
       if (err.message.includes('unique constraint') || err.message.includes('already exists')) {
-        throw new Error('Email already registered');
+        throw httpError(409, 'Email already registered', 'EMAIL_ALREADY_REGISTERED');
       }
       throw err;
     } finally {
@@ -54,9 +79,11 @@ class AuthService {
   }
 
   static async verifyEmail(email, code) {
+    const normalizedEmail = normalizeEmail(email);
     const user = await User.findByVerificationCode(code);
-    if (!user || user.email !== email) {
-      throw new Error('Invalid or expired verification code');
+
+    if (!user || normalizeEmail(user.email) !== normalizedEmail) {
+      throw httpError(400, 'Invalid or expired verification code', 'INVALID_VERIFICATION_CODE');
     }
 
     const client = await connect();
@@ -78,27 +105,47 @@ class AuthService {
   }
 
   static async login(email, password) {
-    const user = await User.findByEmail(email);
-    if (!user) throw new Error('User not found');
+    const normalizedEmail = normalizeEmail(email);
+    const user = await User.findByEmail(normalizedEmail);
 
-    if (!user.password_hash || user.password_hash.startsWith('GOOGLE_')) {
-      throw new Error('Please login with Google for this account');
+    if (!user) {
+      throw httpError(401, 'Invalid email or password', 'INVALID_CREDENTIALS');
+    }
+
+    if (this._isGoogleAccount(user)) {
+      throw httpError(
+        409,
+        'This account uses Google sign-in. Please continue with Google.',
+        'GOOGLE_SIGN_IN_REQUIRED'
+      );
+    }
+
+    if (!user.is_verified) {
+      await this._resendVerificationCode(user.id, normalizedEmail);
+      throw httpError(
+        403,
+        'Please verify your email first. A new verification code has been sent.',
+        'EMAIL_NOT_VERIFIED'
+      );
     }
 
     const isValid = await bcrypt.compare(password, user.password_hash);
-    if (!isValid) throw new Error('Invalid credentials');
+    if (!isValid) {
+      throw httpError(401, 'Invalid email or password', 'INVALID_CREDENTIALS');
+    }
 
     const profile = await Profile.findById(user.id);
     const token = this.generateToken({ id: user.id, email: user.email, roles: user.roles });
 
-    return { 
-      user: { ...profile, roles: user.roles }, 
-      token 
+    return {
+      user: { ...profile, roles: user.roles },
+      token,
     };
   }
 
   static async googleLogin(idToken) {
-    logger.info('🔍 [GOOGLE] Starting token verification...');
+    logger.info('[GOOGLE] Starting token verification...');
+
     try {
       const ticket = await googleClient.verifyIdToken({
         idToken,
@@ -106,80 +153,105 @@ class AuthService {
       });
 
       const payload = ticket.getPayload();
-      const { email, name, picture, sub: googleId } = payload;
-      logger.info(`✅ [GOOGLE] Token verified for: ${email}`);
-      
+      const email = normalizeEmail(payload.email);
+      const { name, picture, sub: googleId } = payload;
+      logger.info(`[GOOGLE] Token verified for: ${email}`);
+
       let user = await User.findByEmail(email);
 
       if (!user) {
-        logger.info(`🔍 [GOOGLE] User ${email} not found. Creating new account...`);
+        logger.info(`[GOOGLE] User ${email} not found. Creating new account...`);
         const client = await connect();
         try {
           await client.query('BEGIN');
           const newUser = await User.create(client, email, `GOOGLE_${googleId}`);
-          const profile = await Profile.create(client, newUser.id, email, name, picture);
+          await Profile.upsert(client, newUser.id, email, name, picture);
+          await User.verifyEmail(client, newUser.id);
           await User.assignRole(client, newUser.id, 'student');
           await client.query('COMMIT');
-          
-          user = { ...profile, roles: ['student'] };
-          logger.info(`✅ [GOOGLE] New user registered successfully: ${user.id}`);
+
+          user = await User.findById(newUser.id);
+          logger.info(`[GOOGLE] New user registered successfully: ${user.id}`);
         } catch (err) {
           await client.query('ROLLBACK');
-          logger.error(`❌ [GOOGLE] Transaction failed: ${err.message}`);
+          logger.error(`[GOOGLE] Transaction failed: ${err.message}`);
           throw err;
         } finally {
           client.release();
         }
       } else {
-        logger.info(`🔍 [GOOGLE] Existing user found: ${user.id}. Updating profile sync...`);
-        // User exists, fetch their full profile and roles
-        let profile = await Profile.findById(user.id);
-        
-        // SELF-HEALING: If profile is missing (due to legacy DB issues), create it now
-        if (!profile) {
-          logger.warn(`⚠️ [GOOGLE] Profile missing for user ${user.id}. Creating now...`);
-          const client = await connect();
-          try {
-            await client.query('BEGIN');
-            profile = await Profile.create(client, user.id, email, name, picture);
-            await client.query('COMMIT');
-          } catch (err) {
-            await client.query('ROLLBACK');
-            throw err;
-          } finally {
-            client.release();
+        logger.info(`[GOOGLE] Existing user found: ${user.id}. Syncing profile...`);
+        const client = await connect();
+        try {
+          await client.query('BEGIN');
+          await Profile.upsert(client, user.id, email, name, picture);
+          if (!user.is_verified) {
+            await User.verifyEmail(client, user.id);
           }
+          await client.query('COMMIT');
+        } catch (err) {
+          await client.query('ROLLBACK');
+          throw err;
+        } finally {
+          client.release();
         }
-        
-        user = { ...profile, roles: user.roles || ['student'] };
       }
 
+      const profile = await Profile.findById(user.id);
       const roles = user.roles || ['student'];
-      const role = roles.includes('admin') ? 'admin' : (roles.includes('trainer') ? 'trainer' : 'student');
-      const token = this.generateToken({ id: user.id || profile.id, email: user.email || email, roles });
-      
-      logger.info(`🚀 [GOOGLE] Auth flow completed successfully for ${email}`);
-      return { 
-        user: { ...user, role, roles }, 
-        token 
+      const role = roles.includes('admin')
+        ? 'admin'
+        : roles.includes('trainer')
+          ? 'trainer'
+          : 'student';
+      const token = this.generateToken({ id: user.id, email: email, roles });
+
+      logger.info(`[GOOGLE] Auth flow completed successfully for ${email}`);
+      return {
+        user: { ...profile, role, roles },
+        token,
       };
     } catch (err) {
-      logger.error(`❌ [GOOGLE] Auth failed: ${err.message}`);
-      throw new Error('فشل تسجيل الدخول عبر قوقل: ' + err.message);
+      logger.error(`[GOOGLE] Auth failed: ${err.message}`);
+      if (err.status) {
+        throw err;
+      }
+      throw httpError(401, `Google sign-in failed: ${err.message}`, 'GOOGLE_LOGIN_FAILED');
     }
   }
 
   static async forgotPassword(email) {
-    const user = await User.findByEmail(email);
-    if (!user) throw new Error('Email not found');
+    const normalizedEmail = normalizeEmail(email);
+    const user = await User.findByEmail(normalizedEmail);
+
+    if (!user) {
+      throw httpError(404, 'Email not found', 'EMAIL_NOT_FOUND');
+    }
+
+    if (this._isGoogleAccount(user)) {
+      throw httpError(
+        409,
+        'This account uses Google sign-in. Please continue with Google.',
+        'GOOGLE_SIGN_IN_REQUIRED'
+      );
+    }
+
+    if (!user.is_verified) {
+      await this._resendVerificationCode(user.id, normalizedEmail);
+      throw httpError(
+        403,
+        'Please verify your email before resetting the password. A new verification code has been sent.',
+        'EMAIL_NOT_VERIFIED'
+      );
+    }
 
     const client = await connect();
-    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins expiry
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
     try {
       await User.saveResetToken(client, user.id, otp, expiresAt);
-      await EmailService.sendPasswordResetCode(email, otp);
+      await EmailService.sendPasswordResetCode(normalizedEmail, otp);
       return { message: 'Password reset code sent to your email' };
     } finally {
       client.release();
@@ -188,10 +260,12 @@ class AuthService {
 
   static async resetPassword(otp, newPassword) {
     const user = await User.findByResetToken(otp);
-    if (!user) throw new Error('Invalid or expired reset code');
+    if (!user) {
+      throw httpError(400, 'Invalid or expired reset code', 'INVALID_RESET_CODE');
+    }
 
     if (new Date(user.reset_token_expires) < new Date()) {
-      throw new Error('Reset code has expired');
+      throw httpError(400, 'Reset code has expired', 'EXPIRED_RESET_CODE');
     }
 
     const client = await connect();
@@ -211,15 +285,45 @@ class AuthService {
 
   static async me(userId) {
     const user = await User.findById(userId);
-    if (!user) throw new Error('User not found');
+    if (!user) {
+      throw httpError(404, 'User not found', 'USER_NOT_FOUND');
+    }
 
     const profile = await Profile.findById(userId);
     const roles = user.roles || [];
-    return { 
-      ...profile, 
-      roles, 
-      role: roles.includes('admin') ? 'admin' : (roles.includes('trainer') ? 'trainer' : 'student') 
+    return {
+      ...profile,
+      roles,
+      role: roles.includes('admin')
+        ? 'admin'
+        : roles.includes('trainer')
+          ? 'trainer'
+          : 'student',
     };
+  }
+
+  static _isGoogleAccount(user) {
+    return !user.password_hash || user.password_hash.startsWith('GOOGLE_');
+  }
+
+  static async _issueVerificationCode(client, userId, email) {
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    await User.saveVerificationCode(client, userId, otp);
+    await EmailService.sendVerificationCode(email, otp);
+  }
+
+  static async _resendVerificationCode(userId, email) {
+    const client = await connect();
+    try {
+      await client.query('BEGIN');
+      await this._issueVerificationCode(client, userId, email);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   static generateToken(payload) {

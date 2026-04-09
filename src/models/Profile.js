@@ -3,7 +3,7 @@ const { query } = require('../db');
 class Profile {
   static async findById(id) {
     const sql = `
-      SELECT p.*, array_agg(ur.role) as roles 
+      SELECT p.*, COALESCE(array_remove(array_agg(ur.role), NULL), '{}') as roles
       FROM profiles p 
       LEFT JOIN user_roles ur ON p.id = ur.user_id 
       WHERE p.id = $1
@@ -17,6 +17,21 @@ class Profile {
     const sql = `
       INSERT INTO profiles (id, email, full_name, avatar_url, country) 
       VALUES ($1, $2, $3, $4, $5) 
+      RETURNING *
+    `;
+    const result = await client.query(sql, [userId, email, fullName, avatarUrl, country]);
+    return result.rows[0];
+  }
+
+  static async upsert(client, userId, email, fullName, avatarUrl = null, country = null) {
+    const sql = `
+      INSERT INTO profiles (id, email, full_name, avatar_url, country)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (id) DO UPDATE SET
+        email = EXCLUDED.email,
+        full_name = COALESCE(EXCLUDED.full_name, profiles.full_name),
+        avatar_url = COALESCE(EXCLUDED.avatar_url, profiles.avatar_url),
+        country = COALESCE(EXCLUDED.country, profiles.country)
       RETURNING *
     `;
     const result = await client.query(sql, [userId, email, fullName, avatarUrl, country]);
