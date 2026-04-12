@@ -67,6 +67,8 @@ EMAIL_ENABLED=false
 REQUIRE_EMAIL_VERIFICATION=false
 AUTO_VERIFY_EMAIL=true
 OTP_DEV_FALLBACK=true
+SUBSCRIPTIONS_PAUSED=true
+TRAINER_EMAILS=awabomer124@gmail.com
 ```
 
 Recommended development or staging behavior while SMTP is down:
@@ -82,6 +84,8 @@ What each flag does:
 - `REQUIRE_EMAIL_VERIFICATION=false`: email verification no longer blocks signup/login
 - `AUTO_VERIFY_EMAIL=true`: new and legacy unverified users are marked verified automatically during auth flows
 - `OTP_DEV_FALLBACK=true`: generates OTP fallback for non-production password-reset or verification testing
+- `SUBSCRIPTIONS_PAUSED=true`: pauses subscription responses for test runs
+- `TRAINER_EMAILS`: comma-separated emails that should be auto-granted `trainer` role on auth flows
 
 Production safety note:
 

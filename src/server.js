@@ -18,6 +18,8 @@ const startServer = async () => {
       requireEmailVerification: env.REQUIRE_EMAIL_VERIFICATION,
       autoVerifyEmail: env.AUTO_VERIFY_EMAIL,
       otpDevFallback: env.OTP_DEV_FALLBACK,
+      subscriptionsPaused: env.SUBSCRIPTIONS_PAUSED,
+      trainerEmailsConfigured: Boolean(env.TRAINER_EMAILS && env.TRAINER_EMAILS.trim()),
     });
 
     server.listen(port, '0.0.0.0', () => {
