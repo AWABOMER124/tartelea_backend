@@ -5,17 +5,28 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    env_file:
+      - ./.env
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
-      - DB_HOST=db
-      - DB_PORT=5432
+      - NODE_ENV=${NODE_ENV:-production}
+      - DB_HOST=${DB_HOST:-db}
+      - DB_PORT=${DB_PORT:-5432}
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - JWT_SECRET=${JWT_SECRET}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
+      - EMAIL_ENABLED=${EMAIL_ENABLED:-false}
+      - REQUIRE_EMAIL_VERIFICATION=${REQUIRE_EMAIL_VERIFICATION:-false}
+      - AUTO_VERIFY_EMAIL=${AUTO_VERIFY_EMAIL:-true}
+      - OTP_DEV_FALLBACK=${OTP_DEV_FALLBACK:-true}
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASS=${EMAIL_PASS}
     depends_on:
       db:
         condition: service_healthy

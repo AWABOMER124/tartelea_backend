@@ -1,7 +1,7 @@
 const http = require('http');
-const app = require('./app');
 const env = require('./config/env');
 const logger = require('./utils/logger');
+const app = require('./app');
 const { pool } = require('./db');
 
 const port = env.PORT || 3000;
@@ -11,6 +11,14 @@ const startServer = async () => {
   try {
     await pool.query('SELECT 1');
     logger.info('Database connection established.');
+    logger.info('Backend environment loaded.', {
+      nodeEnv: env.NODE_ENV,
+      envFilePath: env.ENV_FILE_PATH,
+      emailEnabled: env.EMAIL_ENABLED,
+      requireEmailVerification: env.REQUIRE_EMAIL_VERIFICATION,
+      autoVerifyEmail: env.AUTO_VERIFY_EMAIL,
+      otpDevFallback: env.OTP_DEV_FALLBACK,
+    });
 
     server.listen(port, '0.0.0.0', () => {
       logger.info(`Server is running on http://0.0.0.0:${port} in ${env.NODE_ENV} mode`);

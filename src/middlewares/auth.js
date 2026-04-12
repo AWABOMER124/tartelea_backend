@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const env = require('../config/env');
+const { error } = require('../utils/response');
 
 const authenticateUser = (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -7,10 +8,7 @@ const authenticateUser = (req, res, next) => {
 
   if (!token) {
     console.warn(`[AUTH] 401 Unauthorized - No token provided for ${req.method} ${req.originalUrl}`);
-    return res.status(401).json({
-      success: false,
-      error: { message: 'Access denied. No token provided.', code: 'UNAUTHORIZED' }
-    });
+    return error(res, 'Access denied. No token provided.', 401, 'UNAUTHORIZED');
   }
 
   try {
@@ -18,28 +16,19 @@ const authenticateUser = (req, res, next) => {
     req.user = user;
     next();
   } catch (err) {
-    return res.status(403).json({
-      success: false,
-      error: { message: 'Invalid or expired token.', code: 'INVALID_TOKEN' }
-    });
+    return error(res, 'Invalid or expired token.', 403, 'INVALID_TOKEN');
   }
 };
 
 const authorizeRoles = (...roles) => {
   return (req, res, next) => {
     if (!req.user || !req.user.roles) {
-      return res.status(403).json({
-        success: false,
-        error: { message: 'Permissions denied.', code: 'FORBIDDEN' }
-      });
+      return error(res, 'Permissions denied.', 403, 'FORBIDDEN');
     }
 
     const hasRole = req.user.roles.some((role) => roles.includes(role));
     if (!hasRole) {
-      return res.status(403).json({
-        success: false,
-        error: { message: `Access denied. Requires one of: ${roles.join(', ')}`, code: 'FORBIDDEN' }
-      });
+      return error(res, `Access denied. Requires one of: ${roles.join(', ')}`, 403, 'FORBIDDEN');
     }
     next();
   };

@@ -33,6 +33,11 @@ npm install
 cp .env.example .env
 ```
 
+Important:
+
+- The backend reads `backend/.env`.
+- The repository root `.env` belongs to the web app and must not be used as the backend config.
+
 3. Create the target PostgreSQL database, then apply the schema:
 
 ```bash
@@ -51,6 +56,39 @@ npm run setup:db
 npm run dev
 ```
 
+## Auth And Email Flags
+
+The backend can run even when SMTP is unavailable.
+
+Useful flags in `backend/.env`:
+
+```env
+EMAIL_ENABLED=false
+REQUIRE_EMAIL_VERIFICATION=false
+AUTO_VERIFY_EMAIL=true
+OTP_DEV_FALLBACK=true
+```
+
+Recommended development or staging behavior while SMTP is down:
+
+- `EMAIL_ENABLED=false`
+- `REQUIRE_EMAIL_VERIFICATION=false`
+- `AUTO_VERIFY_EMAIL=true`
+- `OTP_DEV_FALLBACK=true`
+
+What each flag does:
+
+- `EMAIL_ENABLED=false`: skips SMTP send attempts entirely
+- `REQUIRE_EMAIL_VERIFICATION=false`: email verification no longer blocks signup/login
+- `AUTO_VERIFY_EMAIL=true`: new and legacy unverified users are marked verified automatically during auth flows
+- `OTP_DEV_FALLBACK=true`: generates OTP fallback for non-production password-reset or verification testing
+
+Production safety note:
+
+- OTP fallback is never exposed in production responses
+- SMTP-dependent flows return readable errors instead of crashing the auth flow
+- Google sign-in remains independent from SMTP
+
 ## Docker
 
 ```bash
@@ -58,6 +96,8 @@ docker compose up -d --build
 ```
 
 The API will be available at `http://localhost:3000/api/v1`.
+
+`backend/docker-compose.yml` now uses `backend/.env` explicitly through `env_file`.
 
 ## Health Check
 
@@ -109,3 +149,5 @@ test/
 - `backend/schema.sql` is the single schema source of truth.
 - `backend/src/db/schema.sql` is intentionally deprecated and should not be used for setup.
 - Use environment variables for secrets. Do not commit `.env`.
+- If SMTP is unreachable, signup/login/JWT auth still work when the auth flags above are enabled.
+- Password reset and verification use dev fallback behavior only outside production.

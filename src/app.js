@@ -7,8 +7,8 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const errorHandler = require('./middlewares/errorHandler');
-const logger = require('./utils/logger');
 const env = require('./config/env');
+const logger = require('./utils/logger');
 
 const app = express();
 app.disable('x-powered-by');

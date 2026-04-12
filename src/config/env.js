@@ -1,5 +1,36 @@
+const path = require('path');
+const dotenv = require('dotenv');
 const { z } = require('zod');
-require('dotenv').config();
+
+const defaultEnvPath = path.resolve(__dirname, '../../.env');
+const requestedEnvPath = process.env.BACKEND_ENV_FILE
+  ? path.resolve(process.cwd(), process.env.BACKEND_ENV_FILE)
+  : defaultEnvPath;
+
+dotenv.config({ path: requestedEnvPath });
+
+const booleanFlag = (defaultValue) =>
+  z.preprocess((value) => {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'true') {
+        return true;
+      }
+      if (normalized === 'false') {
+        return false;
+      }
+    }
+
+    if (value === undefined || value === null || value === '') {
+      return defaultValue;
+    }
+
+    return value;
+  }, z.boolean());
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -18,6 +49,10 @@ const envSchema = z.object({
   EMAIL_PORT: z.string().optional(),
   EMAIL_USER: z.string().optional(),
   EMAIL_PASS: z.string().optional(),
+  EMAIL_ENABLED: booleanFlag(true),
+  REQUIRE_EMAIL_VERIFICATION: booleanFlag(true),
+  AUTO_VERIFY_EMAIL: booleanFlag(false),
+  OTP_DEV_FALLBACK: booleanFlag(false),
   LIVEKIT_API_KEY: z.string().optional(),
   LIVEKIT_API_SECRET: z.string().optional(),
 });
@@ -29,4 +64,7 @@ if (!result.success) {
   process.exit(1);
 }
 
-module.exports = result.data;
+module.exports = {
+  ...result.data,
+  ENV_FILE_PATH: requestedEnvPath,
+};
