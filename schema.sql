@@ -594,6 +594,25 @@ ALTER TABLE admin_audit_logs ADD COLUMN IF NOT EXISTS request_ip TEXT;
 ALTER TABLE admin_audit_logs ADD COLUMN IF NOT EXISTS details JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE user_roles ALTER COLUMN role SET DEFAULT 'member';
 
+-- rooms.host_id was introduced as the source of truth for session ownership.
+-- Some older databases may have a legacy `created_by` column instead; we backfill when present.
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS host_id UUID REFERENCES users(id) ON DELETE CASCADE;
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'rooms'
+          AND column_name = 'created_by'
+    ) THEN
+        EXECUTE '
+            UPDATE rooms
+            SET host_id = created_by
+            WHERE host_id IS NULL
+              AND created_by IS NOT NULL
+        ';
+    END IF;
+END $$;
+
 ALTER TABLE rooms ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE rooms ADD COLUMN IF NOT EXISTS duration_minutes INT DEFAULT 30;
 ALTER TABLE rooms ADD COLUMN IF NOT EXISTS is_live BOOLEAN DEFAULT false;

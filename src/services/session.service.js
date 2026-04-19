@@ -380,7 +380,8 @@ class SessionService {
   static async listSessions({ reqUser, status, limit = 50, offset = 0 }) {
     const user = normalizeUser(reqUser);
     const subscriptionSnapshot = user ? await SubscriptionService.getUserSnapshot(user) : null;
-    const params = [user?.id || null];
+    const viewerId = user?.id || null;
+    const params = [viewerId];
     const where = ['1 = 1'];
 
     if (status === 'live') {
@@ -393,9 +394,15 @@ class SessionService {
       where.push('r.ended_at IS NOT NULL');
     }
 
-    if (!user || !isPrivilegedSystemUser(user)) {
+    const isPrivileged = Boolean(user && isPrivilegedSystemUser(user));
+
+    if (!isPrivileged) {
       where.push('(r.is_approved = TRUE OR r.host_id = $1)');
     }
+
+    // The COUNT query only needs the `$1` param when the approval/host clause is present.
+    // For privileged users we avoid passing extra bind parameters (prevents pg "bind message supplies ...").
+    const countParams = isPrivileged ? [] : params;
 
     const countResult = await db.query(
       `
@@ -403,7 +410,7 @@ class SessionService {
         FROM rooms r
         WHERE ${where.join('\n          AND ')}
       `,
-      params
+      countParams
     );
 
     const queryParams = [...params];

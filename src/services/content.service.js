@@ -1,7 +1,7 @@
 const DirectusService = require('./directus.service');
 const ContentMapper = require('../mappers/content.mapper');
 const SubscriptionService = require('./subscription.service');
-const { logger } = require('../utils/logger');
+const logger = require('../utils/logger');
 
 class ContentService {
   async getLibraryItems(user, query = {}) {
