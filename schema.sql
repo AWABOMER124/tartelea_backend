@@ -49,6 +49,8 @@ EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
+ALTER TYPE room_role ADD VALUE IF NOT EXISTS 'co_host';
+
 DO $$ BEGIN
     CREATE TYPE hand_raise_status AS ENUM ('pending', 'accepted', 'rejected');
 EXCEPTION
@@ -613,6 +615,7 @@ DO $$ BEGIN
     END IF;
 END $$;
 
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS category content_category;
 ALTER TABLE rooms ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE rooms ADD COLUMN IF NOT EXISTS duration_minutes INT DEFAULT 30;
 ALTER TABLE rooms ADD COLUMN IF NOT EXISTS is_live BOOLEAN DEFAULT false;

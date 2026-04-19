@@ -1,5 +1,5 @@
 const { DIRECTUS_URL, DIRECTUS_TOKEN } = require('../config/env');
-const { logger } = require('../utils/logger');
+const logger = require('../utils/logger');
 const { httpError } = require('../utils/httpError');
 
 class DirectusService {
@@ -14,7 +14,11 @@ class DirectusService {
 
   async fetch(path, options = {}) {
     if (!this.baseUrl) {
-      throw httpError(503, 'Content service is not configured (Directus)', 'SERVICE_UNAVAILABLE');
+      throw httpError(
+        503,
+        'Content service is not configured (Directus). Set DIRECTUS_URL and DIRECTUS_TOKEN.',
+        'DIRECTUS_NOT_CONFIGURED'
+      );
     }
 
     const url = `${this.baseUrl}${path}`;
@@ -37,8 +41,8 @@ class DirectusService {
       }
 
       return await response.json();
-    } catch (error) {
-      if (error.statusCode) throw error;
+  } catch (error) {
+      if (error.status) throw error;
       logger.error('Directus Connection Error', { error: error.message, url });
       throw httpError(503, 'Failed to connect to content service', 'CMS_CONNECTION_FAILED');
     }

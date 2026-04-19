@@ -253,7 +253,8 @@ async function listSpeakerAndModeratorSummaries(executor, sessionId, hostId) {
          AND rr.user_id = rp.user_id
         WHERE rp.room_id = $1
           AND rp.user_id <> $2
-          AND rr.role IN ('co_host', 'moderator', 'speaker')
+          -- Cast enum -> text so older DB enums missing `co_host` don't crash queries.
+          AND rr.role::text IN ('co_host', 'moderator', 'speaker')
       )
       SELECT
         rp.user_id,
@@ -342,9 +343,10 @@ async function listSessionParticipants(executor, sessionId, hostId) {
       LEFT JOIN profiles p ON p.id = people.user_id
       ORDER BY CASE
         WHEN people.is_host THEN 0
-        WHEN rr.role = 'co_host' THEN 1
-        WHEN rr.role = 'moderator' THEN 2
-        WHEN rr.role = 'speaker' THEN 3
+        -- Cast enum -> text so older DB enums missing `co_host` don't crash queries.
+        WHEN rr.role::text = 'co_host' THEN 1
+        WHEN rr.role::text = 'moderator' THEN 2
+        WHEN rr.role::text = 'speaker' THEN 3
         ELSE 4
       END, full_name ASC
     `,
