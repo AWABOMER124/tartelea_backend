@@ -1,3 +1,6 @@
+// ADR-001 freeze marker:
+// Legacy social routes remain online for compatibility only.
+// Do not extend this surface; all new community logic must use `/community/*`.
 const express = require('express');
 const Post = require('../models/Post');
 const Comment = require('../models/Comment');

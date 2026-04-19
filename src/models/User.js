@@ -1,4 +1,5 @@
 const { query } = require('../db');
+const { toStorageRole } = require('../utils/roles');
 
 class User {
   static async findByEmail(email) {
@@ -15,7 +16,7 @@ class User {
 
   static async findById(id) {
     const sql = `
-      SELECT u.id, u.email, COALESCE(array_remove(array_agg(ur.role), NULL), '{}') as roles
+      SELECT u.id, u.email, u.is_verified, COALESCE(array_remove(array_agg(ur.role), NULL), '{}') as roles
       FROM users u 
       LEFT JOIN user_roles ur ON u.id = ur.user_id
       WHERE u.id = $1
@@ -83,8 +84,13 @@ class User {
   }
 
   static async assignRole(client, userId, role) {
+    const storageRole = toStorageRole(role);
+    if (!storageRole) {
+      return;
+    }
+
     const sql = 'INSERT INTO user_roles (user_id, role) VALUES ($1, $2) ON CONFLICT DO NOTHING';
-    await client.query(sql, [userId, role]);
+    await client.query(sql, [userId, storageRole]);
   }
 }
 

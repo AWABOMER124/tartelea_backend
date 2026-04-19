@@ -7,6 +7,9 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "setup:db": "node scripts/setup_db.js",
+    "check:db": "node scripts/check_db_connection.js",
+    "check:subscriptions": "node scripts/check_subscription_catalog.js",
+    "sanity:dev": "node scripts/dev_sanity_check.js",
     "test": "node --require ./test/setup-env.js --test test/**/*.test.js",
     "test:unit": "node --require ./test/setup-env.js --test test/**/*.test.js"
   },

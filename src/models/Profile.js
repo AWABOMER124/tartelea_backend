@@ -3,11 +3,12 @@ const { query } = require('../db');
 class Profile {
   static async findById(id) {
     const sql = `
-      SELECT p.*, COALESCE(array_remove(array_agg(ur.role), NULL), '{}') as roles
-      FROM profiles p 
+      SELECT p.*, u.is_verified, COALESCE(array_remove(array_agg(ur.role), NULL), '{}') as roles
+      FROM profiles p
+      JOIN users u ON u.id = p.id
       LEFT JOIN user_roles ur ON p.id = ur.user_id 
       WHERE p.id = $1
-      GROUP BY p.id
+      GROUP BY p.id, u.is_verified
     `;
     const result = await query(sql, [id]);
     return result.rows[0];

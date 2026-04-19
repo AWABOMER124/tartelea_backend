@@ -20,5 +20,6 @@ router.post('/google', validate(googleLoginSchema), AuthController.googleLogin);
 router.post('/forgot-password', validate(forgotPasswordSchema), AuthController.forgotPassword);
 router.post('/reset-password', validate(resetPasswordSchema), AuthController.resetPassword);
 router.get('/me', auth, AuthController.me);
+router.post('/logout', auth, AuthController.logout);
 
 module.exports = router;

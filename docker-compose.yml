@@ -8,7 +8,8 @@ services:
     env_file:
       - ./.env
     ports:
-      - "3000:3000"
+      # Bind to localhost by default so the API isn't exposed publicly.
+      - "127.0.0.1:3000:3000"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - DB_HOST=${DB_HOST:-db}
@@ -41,7 +42,8 @@ services:
       - POSTGRES_USER=${DB_USER}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
     ports:
-      - "5433:5432"
+      # Bind to localhost by default so PostgreSQL isn't exposed publicly.
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # Optional: Auto-initialize schema

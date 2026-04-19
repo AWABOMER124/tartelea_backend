@@ -1,12 +1,16 @@
-const livekitService = require('../services/livekit.service');
+const SessionService = require('../services/session.service');
+const { success } = require('../utils/response');
 
 /**
- * Handle LiveKit token generation request
+ * Transitional compatibility endpoint.
+ * Official clients must use `/sessions/:id/join`; this endpoint now delegates to
+ * the backend-owned session join flow instead of trusting client-supplied roles.
  * @param {import('express').Request} req
  * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
  */
-const getToken = async (req, res) => {
-    const { roomName, role = 'listener' } = req.body;
+const getToken = async (req, res, next) => {
+    const { roomName } = req.body;
     const userId = req.user?.id;
 
     if (!roomName || !userId) {
@@ -14,18 +18,13 @@ const getToken = async (req, res) => {
     }
 
     try {
-        const canPublish = ['speaker', 'moderator', 'host'].includes(role);
-        const token = await livekitService.generateToken({
-            roomName,
-            identity: userId,
-            canPublish,
-            canSubscribe: true,
-            metadata: { role },
+        const payload = await SessionService.joinSession({
+            reqUser: req.user,
+            sessionId: roomName,
         });
-        res.json({ token });
+        return success(res, payload, 'LiveKit join token resolved through session contract');
     } catch (error) {
-        console.error('Error generating LiveKit token:', error);
-        res.status(500).json({ error: 'Failed to generate token' });
+        next(error);
     }
 };
 

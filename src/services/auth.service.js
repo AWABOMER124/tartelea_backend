@@ -8,6 +8,7 @@ const { connect } = require('../db');
 const env = require('../config/env');
 const { httpError } = require('../utils/httpError');
 const logger = require('../utils/logger');
+const { getPrimaryRole, normalizeRoles } = require('../middlewares/rbac.middleware');
 
 const googleClient = new OAuth2Client(env.GOOGLE_CLIENT_ID);
 
@@ -63,7 +64,7 @@ class AuthService {
       if (user) {
         await User.updatePassword(client, user.id, hashedPassword);
         await Profile.upsert(client, user.id, email, fullName, null, country);
-        await User.assignRole(client, user.id, 'student');
+        await User.assignRole(client, user.id, 'member');
         await this._assignTrainerRoleIfConfigured({
           client,
           userId: user.id,
@@ -78,7 +79,7 @@ class AuthService {
       } else {
         user = await User.create(client, email, hashedPassword);
         await Profile.upsert(client, user.id, email, fullName, null, country);
-        await User.assignRole(client, user.id, 'student');
+        await User.assignRole(client, user.id, 'member');
         await this._assignTrainerRoleIfConfigured({
           client,
           userId: user.id,
@@ -110,7 +111,7 @@ class AuthService {
       const token = this.generateToken({
         id: user.id,
         email,
-        roles: authUser.roles || ['student'],
+        roles: authUser.roles || ['member'],
       });
 
       logger.info('[AUTH][JWT] token issued', {
@@ -159,7 +160,7 @@ class AuthService {
       const token = this.generateToken({
         id: user.id,
         email: normalizedEmail,
-        roles: authUser.roles || user.roles || ['student'],
+        roles: authUser.roles || user.roles || ['member'],
       });
 
       logger.info('[AUTH][JWT] token issued', {
@@ -229,7 +230,7 @@ class AuthService {
     const token = this.generateToken({
       id: user.id,
       email: normalizedEmail,
-      roles: authUser.roles || user.roles || ['student'],
+      roles: authUser.roles || user.roles || ['member'],
     });
 
     logger.info('[AUTH][JWT] token issued', {
@@ -271,7 +272,7 @@ class AuthService {
           const newUser = await User.create(client, email, `GOOGLE_${googleId}`);
           await Profile.upsert(client, newUser.id, email, name, picture);
           await User.verifyEmail(client, newUser.id);
-          await User.assignRole(client, newUser.id, 'student');
+          await User.assignRole(client, newUser.id, 'member');
           await this._assignTrainerRoleIfConfigured({
             client,
             userId: newUser.id,
@@ -324,7 +325,7 @@ class AuthService {
       const token = this.generateToken({
         id: user.id,
         email,
-        roles: authUser.roles || user.roles || ['student'],
+        roles: authUser.roles || user.roles || ['member'],
       });
 
       logger.info('[AUTH][JWT] token issued', {
@@ -677,15 +678,12 @@ class AuthService {
       throw httpError(404, 'User profile not found', 'USER_PROFILE_NOT_FOUND');
     }
 
-    const roles = profile.roles || [];
+    const roles = normalizeRoles(profile.roles || [], { fallback: 'member' });
     return {
       ...profile,
       roles,
-      role: roles.includes('admin')
-        ? 'admin'
-        : roles.includes('trainer')
-          ? 'trainer'
-          : 'student',
+      role: getPrimaryRole(roles, { fallback: 'member' }),
+      status: 'active',
     };
   }
 

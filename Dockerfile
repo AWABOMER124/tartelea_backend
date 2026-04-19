@@ -28,6 +28,6 @@ USER node
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-  CMD node -e "fetch('http://localhost:3000/api/v1/health').then(r => r.ok ? process.exit(0) : process.exit(1))"
+  CMD node -e "fetch('http://localhost:3000/api/v1/ready').then(r => r.ok ? process.exit(0) : process.exit(1))"
 
 CMD ["node", "src/server.js"]
