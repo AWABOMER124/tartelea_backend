@@ -257,6 +257,7 @@ CREATE TABLE IF NOT EXISTS pinned_content (
 CREATE TABLE IF NOT EXISTS rooms (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     title TEXT NOT NULL,
+    slug TEXT NOT NULL DEFAULT ('session-' || uuid_generate_v4()::text),
     description TEXT,
     host_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     category content_category,
@@ -266,6 +267,10 @@ CREATE TABLE IF NOT EXISTS rooms (
     is_approved BOOLEAN DEFAULT false,
     price NUMERIC(10, 2) DEFAULT 0,
     max_participants INT DEFAULT 50,
+    access_type TEXT DEFAULT 'public',
+    image_url TEXT,
+    actual_started_at TIMESTAMP WITH TIME ZONE,
+    ended_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
