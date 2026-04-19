@@ -4,6 +4,7 @@ const { httpError } = require('../utils/httpError');
 const livekitService = require('./livekit.service');
 const SubscriptionService = require('./subscription.service');
 const { normalizeRoles, getPrimaryRole } = require('../middlewares/rbac.middleware');
+const crypto = require('node:crypto');
 
 const SPEAKING_ROOM_ROLES = new Set(['host', 'co_host', 'moderator', 'speaker']);
 const MODERATION_ROOM_ROLES = new Set(['host', 'co_host', 'moderator']);
@@ -522,11 +523,13 @@ class SessionService {
     }
 
     const scheduledAt = payload.scheduled_at ? new Date(payload.scheduled_at).toISOString() : new Date().toISOString();
+    const slug = `session-${crypto.randomUUID()}`;
 
     const result = await db.query(
       `
         INSERT INTO rooms (
           title,
+          slug,
           description,
           host_id,
           category,
@@ -542,11 +545,12 @@ class SessionService {
           ended_at,
           updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, FALSE, FALSE, $7, $8, $9, $10, NULL, NULL, NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE, FALSE, $8, $9, $10, $11, NULL, NULL, NOW())
         RETURNING *
       `,
       [
         payload.title.trim(),
+        slug,
         payload.description?.trim() || null,
         user.id,
         payload.category || 'community',
