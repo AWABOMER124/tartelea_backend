@@ -1,14 +1,32 @@
 const AuthService = require('../services/auth.service');
 const SubscriptionService = require('../services/subscription.service');
+const logger = require('../utils/logger');
 const { success } = require('../utils/response');
 const { buildAuthEnvelope, buildSessionEnvelope } = require('../utils/auth-contract');
+
+async function safeGetSubscriptionContract(user) {
+  if (!user?.id) {
+    return null;
+  }
+
+  try {
+    return await SubscriptionService.getUserContract(user);
+  } catch (err) {
+    logger.warn('[AUTH][SUBSCRIPTION] failed to load subscription contract (non-blocking)', {
+      userId: user.id,
+      error: err?.message,
+      code: err?.code,
+    });
+    return null;
+  }
+}
 
 class AuthController {
   static async signup(req, res, next) {
     try {
       const result = await AuthService.signup(req.body);
       const { message = 'Signup successful', token, accessToken, refreshToken, user, ...extra } = result;
-      const subscription = user?.id ? await SubscriptionService.getUserContract(user) : null;
+      const subscription = await safeGetSubscriptionContract(user);
       return success(
         res,
         buildAuthEnvelope({
@@ -34,7 +52,7 @@ class AuthController {
       const { email, code } = req.body;
       const result = await AuthService.verifyEmail(email, code);
       const { message = 'Email verified successfully', token, accessToken, refreshToken, user, ...extra } = result;
-      const subscription = user?.id ? await SubscriptionService.getUserContract(user) : null;
+      const subscription = await safeGetSubscriptionContract(user);
       return success(
         res,
         buildAuthEnvelope({
@@ -59,7 +77,7 @@ class AuthController {
       const { email, password } = req.body;
       const result = await AuthService.login(email, password);
       const { message = 'Login successful', token, accessToken, refreshToken, user, ...extra } = result;
-      const subscription = user?.id ? await SubscriptionService.getUserContract(user) : null;
+      const subscription = await safeGetSubscriptionContract(user);
       return success(
         res,
         buildAuthEnvelope({
@@ -84,7 +102,7 @@ class AuthController {
       const { idToken } = req.body;
       const result = await AuthService.googleLogin(idToken);
       const { message = 'Google login successful', token, accessToken, refreshToken, user, ...extra } = result;
-      const subscription = user?.id ? await SubscriptionService.getUserContract(user) : null;
+      const subscription = await safeGetSubscriptionContract(user);
       return success(
         res,
         buildAuthEnvelope({
@@ -129,7 +147,7 @@ class AuthController {
   static async me(req, res, next) {
     try {
       const result = await AuthService.me(req.user.id);
-      const subscription = await SubscriptionService.getUserContract(result);
+      const subscription = await safeGetSubscriptionContract(result);
       return success(
         res,
         buildSessionEnvelope({
