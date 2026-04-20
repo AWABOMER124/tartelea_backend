@@ -11,6 +11,28 @@ const MODERATION_ROOM_ROLES = new Set(['host', 'co_host', 'moderator']);
 const KICK_ROOM_ROLES = new Set(['host', 'co_host']);
 const PRIVILEGED_SYSTEM_ROLES = new Set(['admin', 'moderator']);
 
+let roomsHasCreatedByColumn = null;
+
+async function getRoomsHasCreatedByColumn() {
+  if (roomsHasCreatedByColumn !== null) {
+    return roomsHasCreatedByColumn;
+  }
+
+  const result = await db.query(
+    `
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'rooms'
+        AND column_name = 'created_by'
+      LIMIT 1
+    `
+  );
+
+  roomsHasCreatedByColumn = result.rowCount > 0;
+  return roomsHasCreatedByColumn;
+}
+
 function normalizeUser(user) {
   if (!user) {
     return null;
@@ -48,7 +70,7 @@ function deriveVisibility(row) {
 }
 
 function getLivekitRoomName(row) {
-  return row.livekit_room_name || row.id;
+  return row.livekit_room || row.livekit_room_name || row.id;
 }
 
 function isPrivilegedSystemUser(user) {
@@ -523,44 +545,95 @@ class SessionService {
     }
 
     const scheduledAt = payload.scheduled_at ? new Date(payload.scheduled_at).toISOString() : new Date().toISOString();
-    const slug = `session-${crypto.randomUUID()}`;
+    const roomId = crypto.randomUUID();
+    const slug = `session-${roomId}`;
+    const livekitRoom = `room_${roomId}`;
+
+    const hasCreatedByColumn = await getRoomsHasCreatedByColumn();
 
     const result = await db.query(
-      `
-        INSERT INTO rooms (
-          title,
-          slug,
-          description,
-          host_id,
-          category,
-          scheduled_at,
-          duration_minutes,
-          is_live,
-          is_approved,
-          price,
-          max_participants,
-          access_type,
-          image_url,
-          actual_started_at,
-          ended_at,
-          updated_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE, FALSE, $8, $9, $10, $11, NULL, NULL, NOW())
-        RETURNING *
-      `,
-      [
-        payload.title.trim(),
-        slug,
-        payload.description?.trim() || null,
-        user.id,
-        payload.category || 'community',
-        scheduledAt,
-        payload.duration_minutes || 30,
-        payload.price || 0,
-        payload.max_participants || 50,
-        payload.access_type || 'public',
-        payload.image_url || null,
-      ]
+      hasCreatedByColumn
+        ? `
+            INSERT INTO rooms (
+              id,
+              title,
+              slug,
+              livekit_room,
+              description,
+              created_by,
+              host_id,
+              category,
+              scheduled_at,
+              duration_minutes,
+              is_live,
+              is_approved,
+              price,
+              max_participants,
+              access_type,
+              image_url,
+              actual_started_at,
+              ended_at,
+              updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, FALSE, FALSE, $11, $12, $13, $14, NULL, NULL, NOW())
+            RETURNING *
+          `
+        : `
+            INSERT INTO rooms (
+              id,
+              title,
+              slug,
+              livekit_room,
+              description,
+              host_id,
+              category,
+              scheduled_at,
+              duration_minutes,
+              is_live,
+              is_approved,
+              price,
+              max_participants,
+              access_type,
+              image_url,
+              actual_started_at,
+              ended_at,
+              updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, FALSE, FALSE, $10, $11, $12, $13, NULL, NULL, NOW())
+            RETURNING *
+          `,
+      hasCreatedByColumn
+        ? [
+            roomId,
+            payload.title.trim(),
+            slug,
+            livekitRoom,
+            payload.description?.trim() || null,
+            user.id,
+            user.id,
+            payload.category || 'community',
+            scheduledAt,
+            payload.duration_minutes || 30,
+            payload.price || 0,
+            payload.max_participants || 50,
+            payload.access_type || 'public',
+            payload.image_url || null,
+          ]
+        : [
+            roomId,
+            payload.title.trim(),
+            slug,
+            livekitRoom,
+            payload.description?.trim() || null,
+            user.id,
+            payload.category || 'community',
+            scheduledAt,
+            payload.duration_minutes || 30,
+            payload.price || 0,
+            payload.max_participants || 50,
+            payload.access_type || 'public',
+            payload.image_url || null,
+          ]
     );
 
     const row = await getSessionRowById(db, result.rows[0].id, user.id);
