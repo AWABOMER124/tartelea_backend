@@ -258,7 +258,7 @@ CREATE TABLE IF NOT EXISTS rooms (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     title TEXT NOT NULL,
     slug TEXT NOT NULL DEFAULT ('session-' || uuid_generate_v4()::text),
-    livekit_room TEXT NOT NULL DEFAULT ('room_' || uuid_generate_v4()::text),
+    livekit_room TEXT NOT NULL DEFAULT (uuid_generate_v4()::text),
     description TEXT,
     host_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     category content_category,

@@ -547,7 +547,7 @@ class SessionService {
     const scheduledAt = payload.scheduled_at ? new Date(payload.scheduled_at).toISOString() : new Date().toISOString();
     const roomId = crypto.randomUUID();
     const slug = `session-${roomId}`;
-    const livekitRoom = `room_${roomId}`;
+    const livekitRoom = roomId;
 
     const hasCreatedByColumn = await getRoomsHasCreatedByColumn();
 
