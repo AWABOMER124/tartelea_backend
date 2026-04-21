@@ -178,11 +178,13 @@ function mapSessionSummary(row, access, counts = {}) {
     description: row.description,
     program_id: row.program_id || null,
     track_id: row.track_id || null,
+    created_at: row.created_at,
     start_time: row.scheduled_at || row.created_at,
     end_time: row.ended_at || null,
     actual_started_at: row.actual_started_at || null,
     scheduled_at: row.scheduled_at || row.created_at,
     status: deriveSessionStatus(row),
+    is_live: Boolean(row.is_live),
     visibility: deriveVisibility(row),
     category: row.category || 'community',
     image_url: row.image_url || null,
@@ -575,7 +577,7 @@ class SessionService {
               ended_at,
               updated_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, FALSE, FALSE, $11, $12, $13, $14, NULL, NULL, NOW())
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, FALSE, TRUE, $11, $12, $13, $14, NULL, NULL, NOW())
             RETURNING *
           `
         : `
@@ -599,7 +601,7 @@ class SessionService {
               ended_at,
               updated_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, FALSE, FALSE, $10, $11, $12, $13, NULL, NULL, NOW())
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, FALSE, TRUE, $10, $11, $12, $13, NULL, NULL, NOW())
             RETURNING *
           `,
       hasCreatedByColumn
@@ -822,6 +824,7 @@ class SessionService {
             `
               UPDATE rooms
               SET is_live = TRUE,
+                  is_approved = TRUE,
                   actual_started_at = NOW(),
                   ended_at = NULL,
                   updated_at = NOW()
