@@ -359,14 +359,20 @@ function isContentAccessible(row, snapshot) {
 
 function sanitizeProtectedMedia(row, snapshot) {
   if (isContentAccessible(row, snapshot)) {
-    return row;
+    return {
+      ...row,
+      is_locked: false,
+    };
   }
 
   return {
     ...row,
+    is_locked: true,
     media_url: null,
+    file_url: null,
     thumbnail_url: row.thumbnail_url || null,
     url: null,
+    body: null,
   };
 }
 
