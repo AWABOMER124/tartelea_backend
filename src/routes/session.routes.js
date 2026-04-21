@@ -2,6 +2,8 @@ const express = require('express');
 const validate = require('../middlewares/validate');
 const { authenticateUser, optionalAuthenticateUser } = require('../middlewares/auth');
 const { success } = require('../utils/response');
+const { httpError } = require('../utils/httpError');
+const env = require('../config/env');
 const SessionService = require('../services/session.service');
 const {
   listSessionsSchema,
@@ -68,6 +70,34 @@ router.post('/:id/join', authenticateUser, validate(joinSessionSchema), async (r
     });
 
     return success(res, payload, 'Session join resolved successfully');
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Backend-owned LiveKit token issuance.
+// Clients must never mint LiveKit tokens locally.
+router.post('/:id/token', authenticateUser, validate(joinSessionSchema), async (req, res, next) => {
+  try {
+    const payload = await SessionService.joinSession({
+      reqUser: req.user,
+      sessionId: req.params.id,
+    });
+
+    if (!payload.token) {
+      throw httpError(409, 'Session is not live yet', 'SESSION_NOT_LIVE');
+    }
+
+    return success(
+      res,
+      {
+        token: payload.token,
+        url: env.LIVEKIT_URL || 'wss://rtc.tartelea.com',
+        canPublish: payload.access?.canPublish === true,
+        role: payload.access?.room_role || 'listener',
+      },
+      'LiveKit token issued'
+    );
   } catch (error) {
     next(error);
   }
