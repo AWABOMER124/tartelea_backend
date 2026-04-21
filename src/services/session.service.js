@@ -3,6 +3,7 @@ const env = require('../config/env');
 const { httpError } = require('../utils/httpError');
 const livekitService = require('./livekit.service');
 const SubscriptionService = require('./subscription.service');
+const logger = require('../utils/logger');
 const { normalizeRoles, getPrimaryRole } = require('../middlewares/rbac.middleware');
 const crypto = require('node:crypto');
 
@@ -864,6 +865,11 @@ class SessionService {
             `,
             [sessionId, targetUserId, user.id]
           );
+          logger.info('[SESSIONS][ROLE] promote speaker', {
+            sessionId,
+            actorId: user.id,
+            targetUserId,
+          });
           break;
 
         case 'demote_listener':
@@ -882,6 +888,11 @@ class SessionService {
             `,
             [sessionId, targetUserId]
           );
+          logger.info('[SESSIONS][ROLE] demote to listener', {
+            sessionId,
+            actorId: user.id,
+            targetUserId,
+          });
           break;
 
         case 'promote_co_host':
@@ -898,6 +909,11 @@ class SessionService {
             `,
             [sessionId, targetUserId, user.id]
           );
+          logger.info('[SESSIONS][ROLE] promote co_host', {
+            sessionId,
+            actorId: user.id,
+            targetUserId,
+          });
           break;
 
         case 'promote_moderator':
@@ -914,6 +930,11 @@ class SessionService {
             `,
             [sessionId, targetUserId, user.id]
           );
+          logger.info('[SESSIONS][ROLE] promote moderator', {
+            sessionId,
+            actorId: user.id,
+            targetUserId,
+          });
           break;
 
         case 'kick':
@@ -977,6 +998,11 @@ class SessionService {
             `,
             [sessionId, targetUserId, user.id]
           );
+          logger.info('[SESSIONS][ROLE] accept hand -> speaker', {
+            sessionId,
+            actorId: user.id,
+            targetUserId,
+          });
           break;
 
         case 'reject_hand':

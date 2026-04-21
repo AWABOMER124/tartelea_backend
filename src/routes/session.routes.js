@@ -3,6 +3,7 @@ const validate = require('../middlewares/validate');
 const { authenticateUser, optionalAuthenticateUser } = require('../middlewares/auth');
 const { success } = require('../utils/response');
 const { httpError } = require('../utils/httpError');
+const logger = require('../utils/logger');
 const env = require('../config/env');
 const SessionService = require('../services/session.service');
 const {
@@ -79,23 +80,43 @@ router.post('/:id/join', authenticateUser, validate(joinSessionSchema), async (r
 // Clients must never mint LiveKit tokens locally.
 router.post('/:id/token', authenticateUser, validate(joinSessionSchema), async (req, res, next) => {
   try {
+    logger.info('[LIVEKIT][TOKEN] request', {
+      sessionId: req.params.id,
+      userId: req.user?.id,
+    });
+
     const payload = await SessionService.joinSession({
       reqUser: req.user,
       sessionId: req.params.id,
     });
 
     if (!payload.token) {
+      logger.warn('[LIVEKIT][TOKEN] no token returned (session not live?)', {
+        sessionId: req.params.id,
+        userId: req.user?.id,
+        roomRole: payload.access?.room_role,
+        canPublish: payload.access?.canPublish,
+      });
       throw httpError(409, 'Session is not live yet', 'SESSION_NOT_LIVE');
     }
 
+    const responsePayload = {
+      token: payload.token,
+      url: env.LIVEKIT_URL || 'wss://rtc.tartelea.com',
+      canPublish: payload.access?.canPublish === true,
+      role: payload.access?.room_role || 'listener',
+    };
+
+    logger.info('[LIVEKIT][TOKEN] issued', {
+      sessionId: req.params.id,
+      userId: req.user?.id,
+      role: responsePayload.role,
+      canPublish: responsePayload.canPublish,
+    });
+
     return success(
       res,
-      {
-        token: payload.token,
-        url: env.LIVEKIT_URL || 'wss://rtc.tartelea.com',
-        canPublish: payload.access?.canPublish === true,
-        role: payload.access?.room_role || 'listener',
-      },
+      responsePayload,
       'LiveKit token issued'
     );
   } catch (error) {
