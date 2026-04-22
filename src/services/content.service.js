@@ -24,6 +24,75 @@ function normalizeSlug(value) {
   return normalized.length ? normalized : null;
 }
 
+function unwrapId(value) {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value.id) return String(value.id);
+  return null;
+}
+
+function buildCategoryLookups(categories) {
+  const byId = new Map();
+  const idBySlug = new Map();
+
+  for (const category of categories || []) {
+    if (!category?.id) continue;
+    const id = String(category.id);
+    const slug = typeof category.slug === 'string' ? category.slug.trim() : '';
+    const normalizedSlug = slug.toLowerCase();
+
+    byId.set(id, {
+      id,
+      title: category.title,
+      slug,
+    });
+    if (normalizedSlug) {
+      idBySlug.set(normalizedSlug, id);
+    }
+  }
+
+  return { byId, idBySlug };
+}
+
+function buildTrackLookups(tracks) {
+  const byId = new Map();
+  const idBySlug = new Map();
+
+  for (const track of tracks || []) {
+    if (!track?.id) continue;
+    const id = String(track.id);
+    const slug = typeof track.slug === 'string' ? track.slug.trim() : '';
+    const normalizedSlug = slug.toLowerCase();
+
+    byId.set(id, {
+      id,
+      title: track.title,
+      slug,
+    });
+    if (normalizedSlug) {
+      idBySlug.set(normalizedSlug, id);
+    }
+  }
+
+  return { byId, idBySlug };
+}
+
+function hydrateRelations(row, { categoriesById, tracksById } = {}) {
+  const categoryId = unwrapId(row?.category_id);
+  const trackId = unwrapId(row?.track_id);
+
+  return {
+    ...row,
+    category_id: categoryId ? categoriesById?.get(categoryId) || { id: categoryId } : null,
+    track_id: trackId ? tracksById?.get(trackId) || { id: trackId } : null,
+  };
+}
+
+function normalizeSlugKey(value) {
+  const slug = normalizeSlug(value);
+  return slug ? slug.toLowerCase() : null;
+}
+
 class ContentService {
   async getCategories() {
     const categories = await DirectusService.getItems('content_categories', {
@@ -35,53 +104,114 @@ class ContentService {
   }
 
   async getTracks(query = {}) {
-    const categorySlug = normalizeSlug(query.category_slug || query.categorySlug || query.category);
+    const categorySlug = normalizeSlugKey(query.category_slug || query.categorySlug || query.category);
 
-    const filter = {
-      is_active: { _eq: true },
-    };
+    const [categories, tracks] = await Promise.all([
+      DirectusService.getItems('content_categories', {
+        filter: { is_active: { _eq: true } },
+        sort: ['sort_order', 'title'],
+      }),
+      DirectusService.getItems('content_tracks', {
+        filter: { is_active: { _eq: true } },
+        sort: ['sort_order', 'title'],
+        fields: ['*'],
+      }),
+    ]);
 
-    if (categorySlug) {
-      // Directus supports nested relational filters.
-      filter.category_id = { slug: { _eq: categorySlug } };
+    const { byId: categoriesById, idBySlug: categoryIdBySlug } = buildCategoryLookups(categories);
+
+    const resolvedCategoryId = categorySlug ? categoryIdBySlug.get(categorySlug) : null;
+    if (categorySlug && !resolvedCategoryId) {
+      return [];
     }
 
-    const tracks = await DirectusService.getItems('content_tracks', {
-      filter,
-      sort: ['sort_order', 'title'],
-      fields: ['*', 'category_id.*'],
-    });
+    const hydratedTracks = (tracks || [])
+      .map((track) => {
+        const categoryId = unwrapId(track?.category_id);
+        return {
+          ...track,
+          category_id: categoryId ? categoriesById.get(categoryId) || { id: categoryId } : null,
+        };
+      })
+      .filter((track) => {
+        if (!resolvedCategoryId) return true;
+        return unwrapId(track?.category_id) === resolvedCategoryId;
+      });
 
-    return tracks.map((t) => ContentMapper.mapTrack(t));
+    return hydratedTracks.map((t) => ContentMapper.mapTrack(t));
   }
 
   async getLibraryItems(user, query = {}) {
     try {
-      const categorySlug = normalizeSlug(query.category_slug || query.categorySlug || query.category);
-      const trackSlug = normalizeSlug(query.track_slug || query.trackSlug || query.track);
+      const categorySlug = normalizeSlugKey(query.category_slug || query.categorySlug || query.category);
+      const trackSlug = normalizeSlugKey(query.track_slug || query.trackSlug || query.track);
       const contentType = normalizeSlug(query.content_type || query.contentType || query.type);
       const featured = parseBoolean(query.featured ?? query.is_featured ?? query.isFeatured);
       const limit = parseIntOrUndefined(query.limit);
       const offset = parseIntOrUndefined(query.offset);
 
-      const filter = {
-        status: { _eq: 'published' },
-      };
+      const [categories, tracks, items] = await Promise.all([
+        DirectusService.getItems('content_categories', {
+          filter: { is_active: { _eq: true } },
+          sort: ['sort_order', 'title'],
+        }),
+        DirectusService.getItems('content_tracks', {
+          filter: { is_active: { _eq: true } },
+          sort: ['sort_order', 'title'],
+          fields: ['*'],
+        }),
+        DirectusService.getItems('library_items', {
+          filter: { status: { _eq: 'published' } },
+          sort: ['sort_order', '-published_at', '-date_created'],
+          fields: ['*'],
+        }),
+      ]);
 
-      if (categorySlug) filter.category_id = { slug: { _eq: categorySlug } };
-      if (trackSlug) filter.track_id = { slug: { _eq: trackSlug } };
-      if (contentType) filter.content_type = { _eq: contentType };
-      if (featured !== undefined) filter.is_featured = { _eq: featured };
+      const { byId: categoriesById, idBySlug: categoryIdBySlug } = buildCategoryLookups(categories);
+      const { byId: tracksById, idBySlug: trackIdBySlug } = buildTrackLookups(tracks);
 
-      const items = await DirectusService.getItems('library_items', {
-        filter,
-        sort: ['sort_order', '-published_at', '-date_created'],
-        fields: ['*', 'category_id.*', 'track_id.*'],
-        ...(limit !== undefined ? { limit } : {}),
-        ...(offset !== undefined ? { offset } : {}),
-      });
+      const resolvedCategoryId = categorySlug ? categoryIdBySlug.get(categorySlug) : null;
+      if (categorySlug && !resolvedCategoryId) {
+        return [];
+      }
 
-      const mappedItems = items.map((item) => ContentMapper.mapLibraryItem(item));
+      const resolvedTrackId = trackSlug ? trackIdBySlug.get(trackSlug) : null;
+      if (trackSlug && !resolvedTrackId) {
+        return [];
+      }
+
+      const normalizedContentType = contentType ? String(contentType).trim().toLowerCase() : null;
+
+      const filteredItems = (items || [])
+        .map((item) => hydrateRelations(item, { categoriesById, tracksById }))
+        .filter((item) => {
+          if (resolvedCategoryId && unwrapId(item?.category_id) !== resolvedCategoryId) {
+            return false;
+          }
+          if (resolvedTrackId && unwrapId(item?.track_id) !== resolvedTrackId) {
+            return false;
+          }
+          if (normalizedContentType) {
+            const itemType = String(item?.content_type || item?.type || '').trim().toLowerCase();
+            if (itemType !== normalizedContentType) {
+              return false;
+            }
+          }
+          if (featured !== undefined && Boolean(item?.is_featured) !== featured) {
+            return false;
+          }
+          return true;
+        });
+
+      const pagedItems = (() => {
+        const safeOffset = offset ?? 0;
+        if (limit === undefined) {
+          return filteredItems.slice(safeOffset);
+        }
+        return filteredItems.slice(safeOffset, safeOffset + limit);
+      })();
+
+      const mappedItems = pagedItems.map((item) => ContentMapper.mapLibraryItem(item));
       const snapshot = await SubscriptionService.getUserSnapshot(user);
 
       // Do not hide locked items; return them with media removed + is_locked flag.
@@ -119,31 +249,85 @@ class ContentService {
   }
 
   async getProgramsV2(user, query = {}) {
-    const categorySlug = normalizeSlug(query.category_slug || query.categorySlug || query.category);
-    const trackSlug = normalizeSlug(query.track_slug || query.trackSlug || query.track);
+    const categorySlug = normalizeSlugKey(query.category_slug || query.categorySlug || query.category);
+    const trackSlug = normalizeSlugKey(query.track_slug || query.trackSlug || query.track);
     const featured = parseBoolean(query.featured ?? query.is_featured ?? query.isFeatured);
     const limit = parseIntOrUndefined(query.limit);
     const offset = parseIntOrUndefined(query.offset);
 
-    const filter = {
-      status: { _eq: 'published' },
+    const [categories, tracks] = await Promise.all([
+      DirectusService.getItems('content_categories', {
+        filter: { is_active: { _eq: true } },
+        sort: ['sort_order', 'title'],
+      }),
+      DirectusService.getItems('content_tracks', {
+        filter: { is_active: { _eq: true } },
+        sort: ['sort_order', 'title'],
+        fields: ['*'],
+      }),
+    ]);
+
+    const { byId: categoriesById, idBySlug: categoryIdBySlug } = buildCategoryLookups(categories);
+    const { byId: tracksById, idBySlug: trackIdBySlug } = buildTrackLookups(tracks);
+
+    const resolvedCategoryId = categorySlug ? categoryIdBySlug.get(categorySlug) : null;
+    if (categorySlug && !resolvedCategoryId) {
+      return [];
+    }
+
+    const resolvedTrackId = trackSlug ? trackIdBySlug.get(trackSlug) : null;
+    if (trackSlug && !resolvedTrackId) {
+      return [];
+    }
+
+    const baseQuery = {
+      sort: ['sort_order', '-date_created'],
+      fields: ['*'],
     };
 
-    if (categorySlug) filter.category_id = { slug: { _eq: categorySlug } };
-    if (trackSlug) filter.track_id = { slug: { _eq: trackSlug } };
-    if (featured !== undefined) filter.is_featured = { _eq: featured };
+    let programs = [];
+    try {
+      programs = await DirectusService.getItems('programs', {
+        ...baseQuery,
+        filter: { status: { _eq: 'published' } },
+      });
+    } catch (err) {
+      if (err?.status === 403) {
+        programs = await DirectusService.getItems('programs', baseQuery);
+      } else if (err?.status === 404) {
+        programs = [];
+      } else {
+        throw err;
+      }
+    }
 
-    const programs = await DirectusService.getItems('programs', {
-      filter,
-      sort: ['sort_order', '-date_created'],
-      fields: ['*', 'category_id.*', 'track_id.*'],
-      ...(limit !== undefined ? { limit } : {}),
-      ...(offset !== undefined ? { offset } : {}),
-    });
+    const filteredPrograms = (programs || [])
+      .filter((program) => program?.status === 'published')
+      .map((program) => hydrateRelations(program, { categoriesById, tracksById }))
+      .filter((program) => {
+        if (resolvedCategoryId && unwrapId(program?.category_id) !== resolvedCategoryId) {
+          return false;
+        }
+        if (resolvedTrackId && unwrapId(program?.track_id) !== resolvedTrackId) {
+          return false;
+        }
+        if (featured !== undefined && Boolean(program?.is_featured) !== featured) {
+          return false;
+        }
+        return true;
+      });
+
+    const pagedPrograms = (() => {
+      const safeOffset = offset ?? 0;
+      if (limit === undefined) {
+        return filteredPrograms.slice(safeOffset);
+      }
+      return filteredPrograms.slice(safeOffset, safeOffset + limit);
+    })();
 
     const snapshot = await SubscriptionService.getUserSnapshot(user);
 
-    return programs
+    return pagedPrograms
       .map((p) => ContentMapper.mapProgram(p))
       .map((p) => SubscriptionService.sanitizeProtectedMedia(p, snapshot));
   }
@@ -188,31 +372,21 @@ class ContentService {
   async getFeaturedContent(user) {
     const snapshot = await SubscriptionService.getUserSnapshot(user);
 
-    // Banners are optional. If Directus collection isn't ready yet, keep home working.
     const banners = await DirectusService.getItems('banners', {
       filter: { status: { _eq: 'published' } },
       sort: ['sort_order'],
     }).catch((err) => {
-      if (err?.status === 404) return [];
-      throw err;
+      // Banners are optional; Directus policies may reject them (403). Keep home working.
+      logger.warn('ContentService.getFeaturedContent banners failed', { status: err?.status });
+      return [];
     });
 
     const [featuredLibraryItems, featuredPrograms] = await Promise.all([
-      DirectusService.getItems('library_items', {
-        filter: { status: { _eq: 'published' }, is_featured: { _eq: true } },
-        sort: ['sort_order', '-published_at', '-date_created'],
-        fields: ['*', 'category_id.*', 'track_id.*'],
-        limit: 20,
-      }).catch((err) => {
+      this.getLibraryItems(user, { featured: true, limit: 20 }).catch((err) => {
         if (err?.status === 404) return [];
         throw err;
       }),
-      DirectusService.getItems('programs', {
-        filter: { status: { _eq: 'published' }, is_featured: { _eq: true } },
-        sort: ['sort_order', '-date_created'],
-        fields: ['*', 'category_id.*', 'track_id.*'],
-        limit: 20,
-      }).catch((err) => {
+      this.getProgramsV2(user, { featured: true, limit: 20 }).catch((err) => {
         if (err?.status === 404) return [];
         throw err;
       }),
@@ -220,12 +394,12 @@ class ContentService {
 
     return {
       banners: banners.map((b) => ContentMapper.mapBanner(b)),
-      featured_library_items: featuredLibraryItems
-        .map((i) => ContentMapper.mapLibraryItem(i))
-        .map((i) => SubscriptionService.sanitizeProtectedMedia(i, snapshot)),
-      featured_programs: featuredPrograms
-        .map((p) => ContentMapper.mapProgram(p))
-        .map((p) => SubscriptionService.sanitizeProtectedMedia(p, snapshot)),
+      featured_library_items: featuredLibraryItems.map((i) =>
+        SubscriptionService.sanitizeProtectedMedia(i, snapshot)
+      ),
+      featured_programs: featuredPrograms.map((p) =>
+        SubscriptionService.sanitizeProtectedMedia(p, snapshot)
+      ),
     };
   }
 }
