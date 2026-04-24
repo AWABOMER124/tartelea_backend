@@ -25,9 +25,56 @@ function normalizeSlug(value) {
 }
 
 function unwrapId(value) {
-  if (!value) return null;
-  if (typeof value === 'string') return value;
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'string') {
+    const normalized = value.trim();
+    return normalized.length ? normalized : null;
+  }
+  if (typeof value === 'number' || typeof value === 'bigint') return String(value);
   if (typeof value === 'object' && value.id) return String(value.id);
+  return null;
+}
+
+function unwrapRelationId(row, keys, nestedKeys = []) {
+  if (!row) return null;
+
+  const resolvedKeys = Array.isArray(keys) ? keys : [keys];
+  const resolvedNestedKeys = Array.isArray(nestedKeys) ? nestedKeys : [nestedKeys];
+
+  const tryValue = (value) => {
+    const direct = unwrapId(value);
+    if (direct) return direct;
+
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        const entryId = tryValue(entry);
+        if (entryId) return entryId;
+
+        if (entry && typeof entry === 'object') {
+          for (const nestedKey of resolvedNestedKeys) {
+            const nestedId = tryValue(entry[nestedKey]);
+            if (nestedId) return nestedId;
+          }
+        }
+      }
+      return null;
+    }
+
+    if (value && typeof value === 'object') {
+      for (const nestedKey of resolvedNestedKeys) {
+        const nestedId = tryValue(value[nestedKey]);
+        if (nestedId) return nestedId;
+      }
+    }
+
+    return null;
+  };
+
+  for (const key of resolvedKeys) {
+    const id = tryValue(row[key]);
+    if (id) return id;
+  }
+
   return null;
 }
 
@@ -78,8 +125,16 @@ function buildTrackLookups(tracks) {
 }
 
 function hydrateRelations(row, { categoriesById, tracksById } = {}) {
-  const categoryId = unwrapId(row?.category_id);
-  const trackId = unwrapId(row?.track_id);
+  const categoryId = unwrapRelationId(
+    row,
+    ['category_id', 'category', 'categoryId', 'categoryID'],
+    ['content_categories_id', 'content_category_id', 'category_id', 'category']
+  );
+  const trackId = unwrapRelationId(
+    row,
+    ['track_id', 'track', 'trackId', 'trackID'],
+    ['content_tracks_id', 'content_track_id', 'track_id', 'track']
+  );
 
   return {
     ...row,
@@ -125,18 +180,24 @@ class ContentService {
       return [];
     }
 
-    const hydratedTracks = (tracks || [])
-      .map((track) => {
-        const categoryId = unwrapId(track?.category_id);
-        return {
+    const hydratedTracks = (tracks || []).flatMap((track) => {
+      const categoryId = unwrapRelationId(
+        track,
+        ['category_id', 'category', 'categoryId', 'categoryID'],
+        ['content_categories_id', 'content_category_id', 'category_id', 'category']
+      );
+
+      if (resolvedCategoryId && categoryId !== resolvedCategoryId) {
+        return [];
+      }
+
+      return [
+        {
           ...track,
           category_id: categoryId ? categoriesById.get(categoryId) || { id: categoryId } : null,
-        };
-      })
-      .filter((track) => {
-        if (!resolvedCategoryId) return true;
-        return unwrapId(track?.category_id) === resolvedCategoryId;
-      });
+        },
+      ];
+    });
 
     return hydratedTracks.map((t) => ContentMapper.mapTrack(t));
   }
@@ -183,12 +244,27 @@ class ContentService {
       const normalizedContentType = contentType ? String(contentType).trim().toLowerCase() : null;
 
       const filteredItems = (items || [])
-        .map((item) => hydrateRelations(item, { categoriesById, tracksById }))
+        .map((item) => {
+          const hydrated = hydrateRelations(item, { categoriesById, tracksById });
+          return {
+            ...hydrated,
+            __resolved_category_id: unwrapRelationId(
+              item,
+              ['category_id', 'category', 'categoryId', 'categoryID'],
+              ['content_categories_id', 'content_category_id', 'category_id', 'category']
+            ),
+            __resolved_track_id: unwrapRelationId(
+              item,
+              ['track_id', 'track', 'trackId', 'trackID'],
+              ['content_tracks_id', 'content_track_id', 'track_id', 'track']
+            ),
+          };
+        })
         .filter((item) => {
-          if (resolvedCategoryId && unwrapId(item?.category_id) !== resolvedCategoryId) {
+          if (resolvedCategoryId && item.__resolved_category_id !== resolvedCategoryId) {
             return false;
           }
-          if (resolvedTrackId && unwrapId(item?.track_id) !== resolvedTrackId) {
+          if (resolvedTrackId && item.__resolved_track_id !== resolvedTrackId) {
             return false;
           }
           if (normalizedContentType) {
@@ -211,7 +287,12 @@ class ContentService {
         return filteredItems.slice(safeOffset, safeOffset + limit);
       })();
 
-      const mappedItems = pagedItems.map((item) => ContentMapper.mapLibraryItem(item));
+      const mappedItems = pagedItems.map((item) => {
+        const cleaned = { ...item };
+        delete cleaned.__resolved_category_id;
+        delete cleaned.__resolved_track_id;
+        return ContentMapper.mapLibraryItem(cleaned);
+      });
       const snapshot = await SubscriptionService.getUserSnapshot(user);
 
       // Do not hide locked items; return them with media removed + is_locked flag.
@@ -303,12 +384,27 @@ class ContentService {
 
     const filteredPrograms = (programs || [])
       .filter((program) => program?.status === 'published')
-      .map((program) => hydrateRelations(program, { categoriesById, tracksById }))
+      .map((program) => {
+        const hydrated = hydrateRelations(program, { categoriesById, tracksById });
+        return {
+          ...hydrated,
+          __resolved_category_id: unwrapRelationId(
+            program,
+            ['category_id', 'category', 'categoryId', 'categoryID'],
+            ['content_categories_id', 'content_category_id', 'category_id', 'category']
+          ),
+          __resolved_track_id: unwrapRelationId(
+            program,
+            ['track_id', 'track', 'trackId', 'trackID'],
+            ['content_tracks_id', 'content_track_id', 'track_id', 'track']
+          ),
+        };
+      })
       .filter((program) => {
-        if (resolvedCategoryId && unwrapId(program?.category_id) !== resolvedCategoryId) {
+        if (resolvedCategoryId && program.__resolved_category_id !== resolvedCategoryId) {
           return false;
         }
-        if (resolvedTrackId && unwrapId(program?.track_id) !== resolvedTrackId) {
+        if (resolvedTrackId && program.__resolved_track_id !== resolvedTrackId) {
           return false;
         }
         if (featured !== undefined && Boolean(program?.is_featured) !== featured) {
@@ -328,7 +424,12 @@ class ContentService {
     const snapshot = await SubscriptionService.getUserSnapshot(user);
 
     return pagedPrograms
-      .map((p) => ContentMapper.mapProgram(p))
+      .map((p) => {
+        const cleaned = { ...p };
+        delete cleaned.__resolved_category_id;
+        delete cleaned.__resolved_track_id;
+        return ContentMapper.mapProgram(cleaned);
+      })
       .map((p) => SubscriptionService.sanitizeProtectedMedia(p, snapshot));
   }
 
