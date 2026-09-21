@@ -19,8 +19,8 @@ router.post('/', authenticateUser, validate(tokenSchema), async (req, res) => {
   await query(
     `INSERT INTO device_tokens (user_id, token, platform, updated_at)
      VALUES ($1, $2, $3, NOW())
-     ON CONFLICT (user_id, token)
-     DO UPDATE SET platform = EXCLUDED.platform, updated_at = NOW()`,
+     ON CONFLICT (token)
+     DO UPDATE SET user_id = EXCLUDED.user_id, platform = EXCLUDED.platform, updated_at = NOW()`,
     [req.user.id, token, platform]
   );
   return success(res, { registered: true }, 201);
