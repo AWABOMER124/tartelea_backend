@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS device_tokens (
   platform VARCHAR(32) NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (user_id, token)
+  UNIQUE (token)
 );
 
 CREATE INDEX IF NOT EXISTS idx_device_tokens_user_id ON device_tokens(user_id);
