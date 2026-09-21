@@ -23,7 +23,20 @@ EXCEPTION
 END $$;
 
 DO $$ BEGIN
-    CREATE TYPE content_category AS ENUM ('quran', 'values', 'community', 'sudan_awareness');
+    CREATE TYPE content_category AS ENUM (
+        'quran',
+        'values',
+        'community',
+        'sudan_awareness',
+        'general',
+        'tahliya',
+        'takhliya',
+        'tajalli',
+        'psychological',
+        'sudan',
+        'arab_awareness',
+        'islamic_awareness'
+    );
 EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
