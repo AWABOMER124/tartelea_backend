@@ -14,6 +14,11 @@ const {
 } = require('../middlewares/validators/subscription.validator');
 
 const {
+  idParamSchema,
+  userRoleSchema,
+  userRolesSchema,
+  userStatusSchema,
+  approvalSchema,
   resolveReportSchema,
   assignSessionHostSchema,
   endSessionSchema,
@@ -31,12 +36,12 @@ router.get('/audit', requireAdmin, AdminController.listAuditLogs);
 
 // --- User Operations ---
 router.get('/users', AdminController.listUsers);
-router.get('/users/:id', AdminController.getUser);
-router.get('/users/:id/entitlements', AdminController.getUserEntitlements);
-router.patch('/users/:id/role', requireAdmin, AdminController.updateUserRole);
-router.put('/users/:id/roles', requireAdmin, AdminController.updateUserRoles);
-router.patch('/users/:id/status', requireAdmin, AdminController.updateUserStatus);
-router.post('/users/:id/approve-trainer', requireAdmin, AdminController.approveTrainer);
+router.get('/users/:id', validate(idParamSchema), AdminController.getUser);
+router.get('/users/:id/entitlements', validate(idParamSchema), AdminController.getUserEntitlements);
+router.patch('/users/:id/role', requireAdmin, validate(userRoleSchema), AdminController.updateUserRole);
+router.put('/users/:id/roles', requireAdmin, validate(userRolesSchema), AdminController.updateUserRoles);
+router.patch('/users/:id/status', requireAdmin, validate(userStatusSchema), AdminController.updateUserStatus);
+router.post('/users/:id/approve-trainer', requireAdmin, validate(idParamSchema), AdminController.approveTrainer);
 
 // --- Subscription Operations ---
 router.get('/subscriptions', validate(listAdminSubscriptionsSchema), AdminController.listSubscriptions);
@@ -47,9 +52,9 @@ router.post('/subscriptions/revoke', requireAdmin, validate(revokeSubscriptionSc
 router.get('/community/reports', AdminController.listReports);
 router.post('/community/reports/:id/resolve', validate(resolveReportSchema), AdminController.resolveReport);
 router.get('/posts', AdminController.listPosts);
-router.delete('/posts/:id', requireAdmin, AdminController.deletePost);
+router.delete('/posts/:id', requireAdmin, validate(idParamSchema), AdminController.deletePost);
 router.post('/community/posts/:id/hide', AdminController.hidePost);
-router.post('/community/posts/:id/unhide', AdminController.unhidePost);
+router.post('/community/posts/:id/unhide', validate(idParamSchema), AdminController.unhidePost);
 router.post('/community/posts/:id/pin', AdminController.pinPost);
 router.post('/community/posts/:id/unpin', AdminController.unpinPost);
 
@@ -57,7 +62,7 @@ router.post('/community/posts/:id/unpin', AdminController.unpinPost);
 router.get('/contents', AdminController.listContents);
 router.post('/contents', requireAdmin, AdminController.createContent);
 router.put('/contents/:id', requireAdmin, AdminController.updateContent);
-router.delete('/contents/:id', requireAdmin, AdminController.deleteContent);
+router.delete('/contents/:id', requireAdmin, validate(idParamSchema), AdminController.deleteContent);
 
 // --- Sessions & Rooms Controls ---
 router.get('/sessions', AdminController.listSessions);
@@ -66,17 +71,17 @@ router.post('/sessions/:id/end', validate(endSessionSchema), AdminController.end
 
 // --- Approvals (Workshops, Courses, Rooms) ---
 router.get('/courses', AdminController.listCourses);
-router.patch('/courses/:id/approval', requireAdmin, AdminController.updateCourseApproval);
+router.patch('/courses/:id/approval', requireAdmin, validate(approvalSchema), AdminController.updateCourseApproval);
 router.get('/workshops', AdminController.listWorkshops);
-router.patch('/workshops/:id/approval', requireAdmin, AdminController.updateWorkshopApproval);
+router.patch('/workshops/:id/approval', requireAdmin, validate(approvalSchema), AdminController.updateWorkshopApproval);
 router.get('/rooms', AdminController.listRooms);
-router.patch('/rooms/:id/approval', requireAdmin, AdminController.updateRoomApproval);
+router.patch('/rooms/:id/approval', requireAdmin, validate(approvalSchema), AdminController.updateRoomApproval);
 
 // --- Pinned Content ---
 router.get('/pinned', AdminController.listPinned);
 router.post('/pinned', requireAdmin, AdminController.createPinned);
 router.patch('/pinned/:id', requireAdmin, AdminController.updatePinned);
-router.delete('/pinned/:id', requireAdmin, AdminController.deletePinned);
+router.delete('/pinned/:id', requireAdmin, validate(idParamSchema), AdminController.deletePinned);
 
 // --- Communications ---
 router.get('/notifications', AdminController.listNotifications);
