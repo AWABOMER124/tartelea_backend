@@ -7,12 +7,13 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- --- Enums ---
 DO $$ BEGIN
-    CREATE TYPE app_role AS ENUM ('member', 'trainer', 'moderator', 'admin', 'guest');
+    CREATE TYPE app_role AS ENUM ('member', 'student', 'trainer', 'moderator', 'admin', 'guest');
 EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
 ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'member';
+ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'student';
 ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'moderator';
 ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'guest';
 
