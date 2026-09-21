@@ -37,9 +37,11 @@ async function signup(email, fullName) {
     expected: [201, 200],
   });
 
-  assert(payload.token, `Signup token missing for ${email}`);
-  assert(payload.user?.id, `Signup user missing for ${email}`);
-  return { token: payload.token, user: payload.user };
+  const token = payload.accessToken || payload.data?.accessToken || payload.data?.token;
+  const user = payload.user || payload.data?.user;
+  assert(token, `Signup access token missing for ${email}`);
+  assert(user?.id, `Signup user missing for ${email}`);
+  return { token, user };
 }
 
 async function run() {
