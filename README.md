@@ -78,11 +78,19 @@ cp .env.local.example .env.local
 
 Then set `DB_HOST=db` inside `backend/.env.local`.
 
-Apply the schema with either `psql` or the setup script that reads from `backend/schema.sql`:
+Initialize a brand-new database from `schema.sql` with:
 
 ```bash
 npm run setup:db
 ```
+
+For an existing, staging, or production database, apply versioned migrations instead:
+
+```bash
+npm run migrate:db
+```
+
+The migration runner records SHA-256 checksums in `schema_migrations` and refuses to continue if an already-applied migration file was edited.
 
 4. Run local sanity checks before starting the API:
 
@@ -201,6 +209,7 @@ Example response:
 ```bash
 npm run dev
 npm run setup:db
+npm run migrate:db
 npm run check:db
 npm run check:subscriptions
 npm run sanity:dev
@@ -223,6 +232,8 @@ src/
   server.js
 schema.sql
 scripts/setup_db.js
+scripts/run_migrations.js
+migrations/
 test/
 ```
 
@@ -252,3 +263,5 @@ npm run preflight:prod
 The preflight blocks startup/release readiness when required database tables or migrations are missing, when the upload directory is not writable, or when LiveKit production credentials are incomplete. It also reports warnings for optional integrations such as Google OAuth, SMTP, Cloudflare Stream, and PayPal.
 
 When local upload storage is used, the deployment platform must mount persistent storage at `/app/uploads`.
+
+The production container ships `scripts/`, `migrations/`, and `schema.sql`, so migrations can be executed from the deployed backend image. Run `npm run migrate:db` before switching traffic to a release that depends on new schema changes.

@@ -24,7 +24,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check:syntax
+      - run: node --check scripts/run_migrations.js
       - run: npm test
+      - run: docker build -t tartelea-backend-ci .
 
 
   integration:
