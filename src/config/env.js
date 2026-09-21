@@ -74,7 +74,56 @@ const envSchema = z.object({
   DIRECTUS_TOKEN: z.string().optional(),
 });
 
-const result = envSchema.safeParse(process.env);
+const productionSafeEnvSchema = envSchema.superRefine((data, ctx) => {
+  if (data.NODE_ENV !== 'production') return;
+
+  if (!data.JWT_SECRET || data.JWT_SECRET.length < 32 || data.JWT_SECRET === 'change_me') {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['JWT_SECRET'],
+      message: 'Production JWT_SECRET must be a strong secret of at least 32 characters.',
+    });
+  }
+
+  if (data.ALLOWED_ORIGINS.split(',').map((value) => value.trim()).includes('*')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['ALLOWED_ORIGINS'],
+      message: 'Wildcard CORS origins are not allowed in production.',
+    });
+  }
+
+  if (!data.DATABASE_URL && (!data.DB_PASSWORD || data.DB_PASSWORD === 'change_me')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['DB_PASSWORD'],
+      message: 'Production database credentials must not use placeholder values.',
+    });
+  }
+
+  if (data.EMAIL_ENABLED) {
+    const requiredEmailKeys = ['EMAIL_HOST', 'EMAIL_PORT', 'EMAIL_USER', 'EMAIL_PASS'];
+    for (const key of requiredEmailKeys) {
+      if (!data[key]) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [key],
+          message: `${key} is required when EMAIL_ENABLED=true in production.`,
+        });
+      }
+    }
+  }
+
+  if (data.OTP_DEV_FALLBACK) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['OTP_DEV_FALLBACK'],
+      message: 'OTP_DEV_FALLBACK must be disabled in production.',
+    });
+  }
+});
+
+const result = productionSafeEnvSchema.safeParse(process.env);
 
 if (!result.success) {
   console.error('Invalid environment variables:', result.error.format());
