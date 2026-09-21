@@ -1,14 +1,22 @@
 const express = require('express');
 const Profile = require('../models/Profile');
 const { success, error } = require('../utils/response');
-const { authenticateUser } = require('../middlewares/auth');
+const { authenticateUser, optionalAuthenticateUser } = require('../middlewares/auth');
 const validate = require('../middlewares/validate');
 const { updateProfileSchema } = require('../middlewares/validators/profile.validator');
 
 const router = express.Router();
 
-router.get('/:id', async (req, res) => {
-  const profile = await Profile.findById(req.params.id);
+router.get('/:id', optionalAuthenticateUser, async (req, res) => {
+  const isSelf = req.user?.id === req.params.id;
+  const isPrivileged = Boolean(
+    req.user?.roles?.some((role) => ['admin', 'moderator'].includes(role))
+  );
+
+  const profile = isSelf || isPrivileged
+    ? await Profile.findById(req.params.id)
+    : await Profile.findPublicById(req.params.id);
+
   if (!profile) return error(res, 'Profile not found', 404);
   return success(res, profile);
 });

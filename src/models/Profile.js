@@ -14,6 +14,36 @@ class Profile {
     return result.rows[0];
   }
 
+  static async findPublicById(id) {
+    const sql = `
+      SELECT
+        p.id,
+        p.full_name,
+        p.avatar_url,
+        p.bio,
+        p.specialties,
+        p.services,
+        p.facebook_url,
+        p.tiktok_url,
+        p.instagram_url,
+        p.social_links,
+        p.country,
+        p.experience_years,
+        p.specializations,
+        p.is_public_profile,
+        p.created_at,
+        COALESCE(array_remove(array_agg(ur.role), NULL), '{}') as roles
+      FROM profiles p
+      LEFT JOIN user_roles ur ON p.id = ur.user_id
+      WHERE p.id = $1
+      GROUP BY p.id
+      HAVING COALESCE(p.is_public_profile, FALSE) = TRUE
+        OR BOOL_OR(ur.role::text = 'trainer')
+    `;
+    const result = await query(sql, [id]);
+    return result.rows[0];
+  }
+
   static async create(client, userId, email, fullName, avatarUrl = null, country = null) {
     const sql = `
       INSERT INTO profiles (id, email, full_name, avatar_url, country) 
