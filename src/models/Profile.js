@@ -3,7 +3,7 @@ const { query } = require('../db');
 class Profile {
   static async findById(id) {
     const sql = `
-      SELECT p.*, u.is_verified, COALESCE(array_remove(array_agg(ur.role), NULL), '{}') as roles
+      SELECT p.*, u.is_verified, COALESCE(array_remove(array_agg(ur.role::text), NULL), '{}') as roles
       FROM profiles p
       JOIN users u ON u.id = p.id
       LEFT JOIN user_roles ur ON p.id = ur.user_id 
@@ -32,7 +32,7 @@ class Profile {
         p.specializations,
         p.is_public_profile,
         p.created_at,
-        COALESCE(array_remove(array_agg(ur.role), NULL), '{}') as roles
+        COALESCE(array_remove(array_agg(ur.role::text), NULL), '{}') as roles
       FROM profiles p
       LEFT JOIN user_roles ur ON p.id = ur.user_id
       WHERE p.id = $1
