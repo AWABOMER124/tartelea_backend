@@ -718,6 +718,29 @@ class SessionService {
     }
   }
 
+  static async deleteSession({ reqUser, sessionId }) {
+    const user = normalizeUser(reqUser);
+    if (!user) {
+      throw httpError(401, 'Authentication required', 'UNAUTHORIZED');
+    }
+
+    const row = await getSessionRowById(db, sessionId, user.id);
+    if (!row) {
+      throw httpError(404, 'Session not found', 'SESSION_NOT_FOUND');
+    }
+
+    if (row.host_id !== user.id && !isPrivilegedSystemUser(user)) {
+      throw httpError(403, 'Only the host or a privileged moderator can delete this session', 'SESSION_DELETE_DENIED');
+    }
+
+    if (row.is_live) {
+      throw httpError(409, 'End the live session before deleting it', 'SESSION_LIVE_DELETE_DENIED');
+    }
+
+    await db.query('DELETE FROM rooms WHERE id = $1', [sessionId]);
+    return { id: sessionId };
+  }
+
   static async leaveSession({ reqUser, sessionId }) {
     const user = normalizeUser(reqUser);
     if (!user) {
