@@ -561,15 +561,14 @@ class AdminController {
       return error(res, 'User not found', 404, 'USER_NOT_FOUND');
     }
 
+    const client = await db.connect();
     try {
-      await db.query('UPDATE users SET status = $1, updated_at = NOW() WHERE id = $2', [
+      await client.query('BEGIN');
+      await client.query('UPDATE users SET status = $1, updated_at = NOW() WHERE id = $2', [
         status,
         req.params.id,
       ]);
-
-      const user = await fetchUserById(req.params.id);
-
-      await insertAuditLog(db, req, {
+      await insertAuditLog(client, req, {
         action: 'user.status.updated',
         entityType: 'user',
         entityId: req.params.id,
@@ -579,10 +578,15 @@ class AdminController {
           reason: req.body?.reason || null,
         },
       });
+      await client.query('COMMIT');
 
+      const user = await fetchUserById(req.params.id);
       return success(res, { user }, `User status updated to ${status}`);
     } catch (err) {
+      await client.query('ROLLBACK');
       next(err);
+    } finally {
+      client.release();
     }
   }
 
