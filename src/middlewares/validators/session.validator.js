@@ -52,6 +52,12 @@ const joinSessionSchema = z.object({
   }),
 });
 
+const deleteSessionSchema = z.object({
+  params: z.object({
+    id: uuid,
+  }),
+});
+
 const leaveSessionSchema = z.object({
   params: z.object({
     id: uuid,
@@ -74,5 +80,6 @@ module.exports = {
   createSessionSchema,
   joinSessionSchema,
   leaveSessionSchema,
+  deleteSessionSchema,
   sessionActionSchema,
 };
