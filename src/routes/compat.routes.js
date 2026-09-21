@@ -112,6 +112,52 @@ function isPrivileged(user) {
   return Boolean(user?.roles?.some((role) => PRIVILEGED_ROLES.has(role)));
 }
 
+const BACKEND_OWNED_MUTATION_TABLES = new Map([
+  ['service_bookings', 'Use the service-bookings domain API for booking changes.'],
+  ['service_reviews', 'Use the service-bookings review API for reviews.'],
+  ['rooms', 'Use the sessions API for room/session mutations.'],
+]);
+
+const TRAINER_OWNED_MUTATION_TABLES = new Set([
+  'trainer_courses',
+  'trainer_services',
+  'trainer_availability',
+  'trainer_blocked_dates',
+  'workshops',
+  'workshop_recordings',
+]);
+
+function hasRole(user, role) {
+  return Boolean(user?.roles?.includes(role));
+}
+
+function assertCompatMutationDomainAllowed(table, user) {
+  const backendOwnedMessage = BACKEND_OWNED_MUTATION_TABLES.get(table);
+  if (backendOwnedMessage) {
+    throw Object.assign(new Error(backendOwnedMessage), { statusCode: 409 });
+  }
+
+  if (
+    TRAINER_OWNED_MUTATION_TABLES.has(table) &&
+    !isPrivileged(user) &&
+    !hasRole(user, 'trainer')
+  ) {
+    throw Object.assign(new Error('Trainer role is required for this mutation.'), {
+      statusCode: 403,
+    });
+  }
+
+  if (
+    table === 'blog_posts' &&
+    !isPrivileged(user) &&
+    !hasRole(user, 'trainer')
+  ) {
+    throw Object.assign(new Error('Trainer or moderator privileges are required to publish blog posts.'), {
+      statusCode: 403,
+    });
+  }
+}
+
 function isColumnName(value) {
   return typeof value === 'string' && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(value);
 }
@@ -703,6 +749,15 @@ async function runInsert(req, res) {
     return res.status(401).json({ success: false, error: { message: 'Authentication required.' } });
   }
 
+  try {
+    assertCompatMutationDomainAllowed(table, req.user);
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      error: { message: error.message || 'Mutation is not allowed through the compatibility API.' },
+    });
+  }
+
   if (table === 'course_subscriptions') {
     return runLegacyCourseSubscriptionInsert(req, res);
   }
@@ -759,6 +814,15 @@ async function runUpdate(req, res) {
     return res.status(400).json({ success: false, error: { message: 'Unsupported mutation target.' } });
   }
 
+  try {
+    assertCompatMutationDomainAllowed(table, req.user);
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      error: { message: error.message || 'Mutation is not allowed through the compatibility API.' },
+    });
+  }
+
   if (table === 'course_subscriptions' || table === 'monthly_subscriptions') {
     return rejectLegacySubscriptionMutation(
       res,
@@ -796,6 +860,15 @@ async function runDelete(req, res) {
 
   if (!config || config.readOnly) {
     return res.status(400).json({ success: false, error: { message: 'Unsupported mutation target.' } });
+  }
+
+  try {
+    assertCompatMutationDomainAllowed(table, req.user);
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      error: { message: error.message || 'Mutation is not allowed through the compatibility API.' },
+    });
   }
 
   if (table === 'course_subscriptions') {
