@@ -1724,4 +1724,5 @@ class AdminController {
   }
 }
 
+// CI trigger: privileged role audit transaction hardening
 module.exports = AdminController;
