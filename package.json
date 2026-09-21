@@ -14,7 +14,8 @@
     "test:unit": "node --require ./test/setup-env.js --test test/**/*.test.js",
     "migrate:db": "node scripts/run_migrations.js",
     "check:syntax": "node scripts/check_syntax.js",
-    "preflight:prod": "NODE_ENV=production node scripts/preflight_production.js"
+    "preflight:prod": "NODE_ENV=production node scripts/preflight_production.js",
+    "smoke:core": "node scripts/smoke_core_flows.js"
   },
   "keywords": [],
   "author": "",
