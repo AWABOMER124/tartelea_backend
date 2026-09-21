@@ -4,7 +4,7 @@ const { toStorageRole } = require('../utils/roles');
 class User {
   static async findByEmail(email) {
     const sql = `
-      SELECT u.*, COALESCE(array_remove(array_agg(ur.role), NULL), '{}') as roles
+      SELECT u.*, COALESCE(array_remove(array_agg(ur.role::text), NULL), '{}') as roles
       FROM users u 
       LEFT JOIN user_roles ur ON u.id = ur.user_id
       WHERE LOWER(u.email) = LOWER($1)
@@ -16,7 +16,7 @@ class User {
 
   static async findById(id) {
     const sql = `
-      SELECT u.id, u.email, u.is_verified, COALESCE(array_remove(array_agg(ur.role), NULL), '{}') as roles
+      SELECT u.id, u.email, u.is_verified, COALESCE(array_remove(array_agg(ur.role::text), NULL), '{}') as roles
       FROM users u 
       LEFT JOIN user_roles ur ON u.id = ur.user_id
       WHERE u.id = $1
@@ -43,7 +43,7 @@ class User {
 
   static async findByVerificationCode(code) {
     const sql = `
-      SELECT u.id, u.email, u.is_verified, COALESCE(array_remove(array_agg(ur.role), NULL), '{}') as roles
+      SELECT u.id, u.email, u.is_verified, COALESCE(array_remove(array_agg(ur.role::text), NULL), '{}') as roles
       FROM users u 
       LEFT JOIN user_roles ur ON u.id = ur.user_id
       WHERE u.verification_code = $1
@@ -55,7 +55,7 @@ class User {
 
   static async findByResetToken(token) {
     const sql = `
-      SELECT u.id, u.email, u.reset_token_expires, COALESCE(array_remove(array_agg(ur.role), NULL), '{}') as roles
+      SELECT u.id, u.email, u.reset_token_expires, COALESCE(array_remove(array_agg(ur.role::text), NULL), '{}') as roles
       FROM users u 
       LEFT JOIN user_roles ur ON u.id = ur.user_id
       WHERE u.reset_token = $1
