@@ -7,12 +7,14 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const errorHandler = require('./middlewares/errorHandler');
+const requestContext = require('./middlewares/requestContext');
 const env = require('./config/env');
 const logger = require('./utils/logger');
 
 const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
+app.use(requestContext);
 
 const allowedOrigins = env.ALLOWED_ORIGINS
   .split(',')
@@ -29,7 +31,7 @@ app.use(
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept', 'X-Request-ID'],
   })
 );
 
