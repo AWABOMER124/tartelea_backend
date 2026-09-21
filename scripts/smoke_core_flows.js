@@ -25,22 +25,35 @@ async function request(path, { method = 'GET', token, body, expected = [200] } =
   return { status: response.status, payload };
 }
 
-async function signup(email, fullName) {
-  const { payload } = await request('/auth/signup', {
+async function signupOrLogin(email, fullName) {
+  const password = 'Passw0rd!';
+
+  const signupResult = await request('/auth/signup', {
     method: 'POST',
     body: {
       email,
-      password: 'Passw0rd!',
+      password,
       full_name: fullName,
       country: 'SA',
     },
-    expected: [201, 200],
+    expected: [201, 200, 409],
   });
+
+  let payload = signupResult.payload;
+
+  if (signupResult.status === 409) {
+    const loginResult = await request('/auth/login', {
+      method: 'POST',
+      body: { email, password },
+      expected: [200],
+    });
+    payload = loginResult.payload;
+  }
 
   const token = payload.accessToken || payload.data?.accessToken || payload.data?.token;
   const user = payload.user || payload.data?.user;
-  assert(token, `Signup access token missing for ${email}`);
-  assert(user?.id, `Signup user missing for ${email}`);
+  assert(token, `Auth access token missing for ${email}`);
+  assert(user?.id, `Auth user missing for ${email}`);
   return { token, user };
 }
 
@@ -50,8 +63,8 @@ async function run() {
   await request('/ready');
 
   console.log('[SMOKE] signup/auth/profile');
-  const trainer = await signup('trainer@example.com', 'Smoke Trainer');
-  const student = await signup('student@example.com', 'Smoke Student');
+  const trainer = await signupOrLogin('trainer@example.com', 'Smoke Trainer');
+  const student = await signupOrLogin('student@example.com', 'Smoke Student');
 
   const trainerMe = await request('/auth/me', { token: trainer.token });
   assert(
