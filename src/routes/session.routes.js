@@ -12,6 +12,7 @@ const {
   createSessionSchema,
   joinSessionSchema,
   leaveSessionSchema,
+  deleteSessionSchema,
   sessionActionSchema,
 } = require('../middlewares/validators/session.validator');
 
@@ -119,6 +120,18 @@ router.post('/:id/token', authenticateUser, validate(joinSessionSchema), async (
       responsePayload,
       'LiveKit token issued'
     );
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/:id', authenticateUser, validate(deleteSessionSchema), async (req, res, next) => {
+  try {
+    const data = await SessionService.deleteSession({
+      reqUser: req.user,
+      sessionId: req.params.id,
+    });
+    return success(res, data, 'Session deleted');
   } catch (error) {
     next(error);
   }
