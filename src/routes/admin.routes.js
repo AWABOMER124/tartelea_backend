@@ -67,9 +67,9 @@ router.patch('/rooms/:id/approval', requireAdmin, AdminController.updateRoomAppr
 
 // --- Pinned Content ---
 router.get('/pinned', AdminController.listPinned);
-router.post('/pinned', AdminController.createPinned);
-router.patch('/pinned/:id', AdminController.updatePinned);
-router.delete('/pinned/:id', AdminController.deletePinned);
+router.post('/pinned', requireAdmin, AdminController.createPinned);
+router.patch('/pinned/:id', requireAdmin, AdminController.updatePinned);
+router.delete('/pinned/:id', requireAdmin, AdminController.deletePinned);
 
 // --- Communications ---
 router.get('/notifications', AdminController.listNotifications);
