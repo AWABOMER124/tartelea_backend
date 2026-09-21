@@ -1,5 +1,6 @@
 const express = require('express');
 const { pool } = require('../db');
+const logger = require('../utils/logger');
 const authRoutes = require('./auth.routes');
 const profileRoutes = require('./profile.routes');
 const postRoutes = require('./post.routes');
@@ -43,11 +44,12 @@ router.get('/ready', async (req, res) => {
       service: 'tartelea-backend',
     });
   } catch (err) {
+    logger.error('Readiness database check failed', { error: err });
     return res.status(503).json({
       success: false,
       status: 'NOT_READY',
       reason: 'DB_UNAVAILABLE',
-      message: err?.message || 'Database is unavailable',
+      message: 'Database is unavailable',
       timestamp: new Date(),
       service: 'tartelea-backend',
     });
