@@ -4,8 +4,19 @@
 ALTER TABLE rooms
   ADD COLUMN IF NOT EXISTS host_id UUID;
 
--- 2) Backfill from legacy `created_by` if that column exists
-DO $$
+-- 2) Clear orphaned host references left by older schemas/data.
+-- Keep the room row; only null the incompatible reference so the FK can be added safely.
+UPDATE rooms r
+SET host_id = NULL
+WHERE host_id IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM users u
+    WHERE u.id = r.host_id
+  );
+
+-- 3) Backfill from legacy `created_by` only when it references an existing user.
+DO $
 BEGIN
   IF EXISTS (
     SELECT 1
@@ -14,15 +25,20 @@ BEGIN
       AND column_name = 'created_by'
   ) THEN
     EXECUTE '
-      UPDATE rooms
-      SET host_id = created_by
-      WHERE host_id IS NULL
-        AND created_by IS NOT NULL
+      UPDATE rooms r
+      SET host_id = r.created_by
+      WHERE r.host_id IS NULL
+        AND r.created_by IS NOT NULL
+        AND EXISTS (
+          SELECT 1
+          FROM users u
+          WHERE u.id = r.created_by
+        )
     ';
   END IF;
-END $$;
+END $;
 
--- 3) Add FK constraint in a low-risk way (NOT VALID then validate)
+-- 4) Add FK constraint in a low-risk way (NOT VALID then validate)
 DO $$
 BEGIN
   IF NOT EXISTS (
