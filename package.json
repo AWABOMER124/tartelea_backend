@@ -12,7 +12,8 @@
     "sanity:dev": "node scripts/dev_sanity_check.js",
     "test": "node --require ./test/setup-env.js --test test/**/*.test.js",
     "test:unit": "node --require ./test/setup-env.js --test test/**/*.test.js",
-    "migrate:db": "node scripts/run_migrations.js"
+    "migrate:db": "node scripts/run_migrations.js",
+    "check:syntax": "node scripts/check_syntax.js"
   },
   "keywords": [],
   "author": "",
