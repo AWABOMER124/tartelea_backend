@@ -238,3 +238,17 @@ test/
   - `docs/architecture/ARCHITECTURE_DECISION_001_backend_first.md`
   - `docs/architecture/ROLE_MATRIX.md`
   - `docs/architecture/AUTH_CONTRACT.md`
+
+
+## Production Preflight
+
+After configuring production environment variables and applying migrations, run:
+
+```bash
+npm run migrate:db
+npm run preflight:prod
+```
+
+The preflight blocks startup/release readiness when required database tables or migrations are missing, when the upload directory is not writable, or when LiveKit production credentials are incomplete. It also reports warnings for optional integrations such as Google OAuth, SMTP, Cloudflare Stream, and PayPal.
+
+When local upload storage is used, the deployment platform must mount persistent storage at `/app/uploads`.
