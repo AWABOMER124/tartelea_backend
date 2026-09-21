@@ -452,19 +452,19 @@ class AdminController {
         req.params.id,
         toStorageRole(role),
       ]);
-      await client.query('COMMIT');
-
-      const user = await fetchUserById(req.params.id);
-      await insertAuditLog(db, req, {
+      await insertAuditLog(client, req, {
         action: 'user.role.updated',
         entityType: 'user',
         entityId: req.params.id,
         details: {
           previous_role: existingUser.role,
-          next_role: user?.role || role,
+          next_role: role,
           email: existingUser.email,
         },
       });
+      await client.query('COMMIT');
+
+      const user = await fetchUserById(req.params.id);
       return success(res, { user }, 'User role updated successfully');
     } catch (err) {
       await client.query('ROLLBACK');
@@ -505,20 +505,19 @@ class AdminController {
         ]);
       }
 
-      await client.query('COMMIT');
-
-      const user = await fetchUserById(req.params.id);
-      await insertAuditLog(db, req, {
+      await insertAuditLog(client, req, {
         action: 'user.roles.updated',
         entityType: 'user',
         entityId: req.params.id,
         details: {
           previous_roles: existingUser.roles,
-          next_roles: user?.roles || roles,
+          next_roles: roles,
           email: existingUser.email,
         },
       });
+      await client.query('COMMIT');
 
+      const user = await fetchUserById(req.params.id);
       return success(res, { user }, 'User roles updated successfully');
     } catch (err) {
       await client.query('ROLLBACK');
@@ -607,11 +606,7 @@ class AdminController {
         "UPDATE users SET metadata = metadata || $1::jsonb WHERE id = $2",
         [JSON.stringify({ trainer_approved_at: new Date().toISOString() }), req.params.id]
       );
-      await client.query('COMMIT');
-
-      const user = await fetchUserById(req.params.id);
-
-      await insertAuditLog(db, req, {
+      await insertAuditLog(client, req, {
         action: 'user.trainer.approved',
         entityType: 'user',
         entityId: req.params.id,
@@ -620,7 +615,9 @@ class AdminController {
           approved_by: req.user?.id,
         },
       });
+      await client.query('COMMIT');
 
+      const user = await fetchUserById(req.params.id);
       return success(res, { user }, 'Trainer approved successfully');
     } catch (err) {
       await client.query('ROLLBACK');
@@ -1727,4 +1724,5 @@ class AdminController {
   }
 }
 
+// CI trigger: privileged role audit transaction hardening
 module.exports = AdminController;
