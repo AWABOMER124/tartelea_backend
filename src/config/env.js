@@ -62,6 +62,7 @@ const envSchema = z.object({
   OTP_DEV_FALLBACK: booleanFlag(false),
   SUBSCRIPTIONS_PAUSED: booleanFlag(false),
   TRAINER_EMAILS: z.string().optional(),
+  ALLOW_TRAINER_EMAIL_BOOTSTRAP: booleanFlag(false),
   LIVEKIT_API_KEY: z.string().optional(),
   LIVEKIT_API_SECRET: z.string().optional(),
   LIVEKIT_URL: z.string().optional(),
@@ -112,6 +113,14 @@ const productionSafeEnvSchema = envSchema.superRefine((data, ctx) => {
         });
       }
     }
+  }
+
+  if (data.ALLOW_TRAINER_EMAIL_BOOTSTRAP) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['ALLOW_TRAINER_EMAIL_BOOTSTRAP'],
+      message: 'Trainer email bootstrap must be disabled in production. Grant trainer roles through admin workflows.',
+    });
   }
 
   if (data.OTP_DEV_FALLBACK) {
