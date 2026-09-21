@@ -1,5 +1,6 @@
 -- Purpose: Fix production sessions by ensuring `rooms.host_id` exists.
 -- Safe to run multiple times.
+
 -- 1) Add column (nullable)
 ALTER TABLE rooms
   ADD COLUMN IF NOT EXISTS host_id UUID;
@@ -16,7 +17,7 @@ WHERE host_id IS NOT NULL
   );
 
 -- 3) Backfill from legacy `created_by` only when it references an existing user.
-DO $
+DO $$
 BEGIN
   IF EXISTS (
     SELECT 1
@@ -36,7 +37,7 @@ BEGIN
         )
     ';
   END IF;
-END $;
+END $$;
 
 -- 4) Add FK constraint in a low-risk way (NOT VALID then validate)
 DO $$
@@ -55,4 +56,3 @@ BEGIN
       VALIDATE CONSTRAINT rooms_host_id_fkey;
   END IF;
 END $$;
-
