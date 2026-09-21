@@ -18,6 +18,7 @@ const communityAdminRoutes = require('./community-admin.routes');
 const sessionRoutes = require('./session.routes');
 const compatRoutes = require('./compat.routes');
 const deviceTokenRoutes = require('./device-token.routes');
+const bookingRoutes = require('./booking.routes');
 
 const router = express.Router();
 
@@ -74,5 +75,6 @@ router.use('/admin/community', communityAdminRoutes);
 router.use('/sessions', sessionRoutes);
 router.use('/compat', compatRoutes);
 router.use('/device-tokens', deviceTokenRoutes);
+router.use('/service-bookings', bookingRoutes);
 
 module.exports = router;
