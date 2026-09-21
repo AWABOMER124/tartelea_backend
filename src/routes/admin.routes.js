@@ -13,6 +13,13 @@ const {
   revokeSubscriptionSchema,
 } = require('../middlewares/validators/subscription.validator');
 
+const {
+  resolveReportSchema,
+  assignSessionHostSchema,
+  endSessionSchema,
+  broadcastNotificationSchema,
+} = require('../middlewares/validators/admin.validator');
+
 const router = express.Router();
 
 // Base protection for admin routes (Admin or Moderator)
@@ -38,7 +45,7 @@ router.post('/subscriptions/revoke', requireAdmin, validate(revokeSubscriptionSc
 
 // --- Community Moderation ---
 router.get('/community/reports', AdminController.listReports);
-router.post('/community/reports/:id/resolve', AdminController.resolveReport);
+router.post('/community/reports/:id/resolve', validate(resolveReportSchema), AdminController.resolveReport);
 router.get('/posts', AdminController.listPosts);
 router.delete('/posts/:id', requireAdmin, AdminController.deletePost);
 router.post('/community/posts/:id/hide', AdminController.hidePost);
@@ -54,8 +61,8 @@ router.delete('/contents/:id', requireAdmin, AdminController.deleteContent);
 
 // --- Sessions & Rooms Controls ---
 router.get('/sessions', AdminController.listSessions);
-router.post('/sessions/:id/assign-host', AdminController.assignSessionHost);
-router.post('/sessions/:id/end', AdminController.endSession);
+router.post('/sessions/:id/assign-host', validate(assignSessionHostSchema), AdminController.assignSessionHost);
+router.post('/sessions/:id/end', validate(endSessionSchema), AdminController.endSession);
 
 // --- Approvals (Workshops, Courses, Rooms) ---
 router.get('/courses', AdminController.listCourses);
@@ -73,6 +80,6 @@ router.delete('/pinned/:id', requireAdmin, AdminController.deletePinned);
 
 // --- Communications ---
 router.get('/notifications', AdminController.listNotifications);
-router.post('/notifications/broadcast', requireAdmin, AdminController.broadcastNotification);
+router.post('/notifications/broadcast', requireAdmin, validate(broadcastNotificationSchema), AdminController.broadcastNotification);
 
 module.exports = router;
