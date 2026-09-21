@@ -429,6 +429,15 @@ class AdminController {
       return error(res, 'Invalid role supplied', 400, 'INVALID_ROLE');
     }
 
+    if (req.user?.id === req.params.id && role !== 'admin') {
+      return error(
+        res,
+        'You cannot remove your own admin role',
+        409,
+        'SELF_ADMIN_ROLE_REMOVAL'
+      );
+    }
+
     const existingUser = await fetchUserById(req.params.id);
     if (!existingUser) {
       return error(res, 'User not found', 404, 'USER_NOT_FOUND');
@@ -467,6 +476,16 @@ class AdminController {
 
   static async updateUserRoles(req, res, next) {
     const roles = normalizeUserRolesInput(req.body?.roles);
+
+    if (req.user?.id === req.params.id && !roles.includes('admin')) {
+      return error(
+        res,
+        'You cannot remove your own admin role',
+        409,
+        'SELF_ADMIN_ROLE_REMOVAL'
+      );
+    }
+
     const existingUser = await fetchUserById(req.params.id);
 
     if (!existingUser) {
@@ -527,6 +546,15 @@ class AdminController {
 
     if (!allowed.includes(status)) {
       return error(res, `Invalid status. Allowed: ${allowed.join(', ')}`, 400, 'INVALID_STATUS');
+    }
+
+    if (req.user?.id === req.params.id && status !== 'active') {
+      return error(
+        res,
+        'You cannot suspend or deactivate your own admin account',
+        409,
+        'SELF_ADMIN_STATUS_CHANGE'
+      );
     }
 
     const existingUser = await fetchUserById(req.params.id);
