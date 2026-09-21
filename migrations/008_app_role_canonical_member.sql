@@ -1,0 +1,6 @@
+ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'member';
+ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'student';
+ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'trainer';
+ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'moderator';
+ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'admin';
+ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'guest';

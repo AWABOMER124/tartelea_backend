@@ -52,10 +52,6 @@ function toStorageRole(role) {
     return null;
   }
 
-  if (normalized === 'member') {
-    return 'student';
-  }
-
   return normalized;
 }
 

@@ -18,9 +18,10 @@ async function setupDatabase() {
   } catch (err) {
     console.error('[DB SETUP] Failed to initialize database:', err.message);
     console.error('Stack:', err.stack);
+    process.exitCode = 1;
   } finally {
     client.release();
-    process.exit(0);
+    await pool.end();
   }
 }
 

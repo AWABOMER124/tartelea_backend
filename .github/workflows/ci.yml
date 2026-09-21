@@ -21,3 +21,65 @@ jobs:
       - run: npm ci
       - run: npm run check:syntax
       - run: npm test
+
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: tartelea_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d tartelea_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      NODE_ENV: test
+      PORT: 3000
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_NAME: tartelea_test
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      JWT_SECRET: integration_test_secret_at_least_32_characters
+      ALLOWED_ORIGINS: http://127.0.0.1:3000
+      EMAIL_ENABLED: "false"
+      REQUIRE_EMAIL_VERIFICATION: "false"
+      AUTO_VERIFY_EMAIL: "true"
+      OTP_DEV_FALLBACK: "true"
+      SUBSCRIPTIONS_PAUSED: "false"
+      TRAINER_EMAILS: trainer@example.com
+      ALLOW_TRAINER_EMAIL_BOOTSTRAP: "true"
+      SMOKE_BASE_URL: http://127.0.0.1:3000/api/v1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run setup:db
+      - run: npm run migrate:db
+      - name: Start backend
+        run: |
+          node src/server.js > /tmp/tartelea-server.log 2>&1 &
+          echo $! > /tmp/tartelea-server.pid
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3000/api/v1/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/tartelea-server.log
+          exit 1
+      - run: npm run smoke:core
+      - name: Dump backend log on failure
+        if: failure()
+        run: cat /tmp/tartelea-server.log || true
