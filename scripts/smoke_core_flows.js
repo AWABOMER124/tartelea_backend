@@ -1,5 +1,19 @@
 const baseUrl = process.env.SMOKE_BASE_URL || 'http://127.0.0.1:3000/api/v1';
 
+const trainerBootstrapEnabled =
+  String(process.env.ALLOW_TRAINER_EMAIL_BOOTSTRAP || '').trim().toLowerCase() === 'true';
+
+const configuredTrainerEmails = new Set(
+  String(process.env.TRAINER_EMAILS || '')
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean)
+);
+
+const smokeTrainerEmail = 'trainer@example.com';
+const canRunTrainerLifecycle =
+  trainerBootstrapEnabled && configuredTrainerEmails.has(smokeTrainerEmail);
+
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
@@ -63,14 +77,21 @@ async function run() {
   await request('/ready');
 
   console.log('[SMOKE] signup/auth/profile');
-  const trainer = await signupOrLogin('trainer@example.com', 'Smoke Trainer');
   const student = await signupOrLogin('student@example.com', 'Smoke Student');
 
-  const trainerMe = await request('/auth/me', { token: trainer.token });
-  assert(
-    trainerMe.payload.user?.roles?.includes('trainer'),
-    'Configured trainer did not receive trainer role in test bootstrap'
-  );
+  let trainer = null;
+  if (canRunTrainerLifecycle) {
+    trainer = await signupOrLogin(smokeTrainerEmail, 'Smoke Trainer');
+    const trainerMe = await request('/auth/me', { token: trainer.token });
+    assert(
+      trainerMe.payload.user?.roles?.includes('trainer'),
+      'Configured trainer did not receive trainer role in test bootstrap'
+    );
+  } else {
+    console.log(
+      '[SMOKE] trainer bootstrap disabled/not configured; skipping trainer-only production flow'
+    );
+  }
 
   const studentMe = await request('/auth/me', { token: student.token });
   assert(studentMe.payload.user?.id === student.user.id, 'Student /auth/me mismatch');
@@ -90,6 +111,11 @@ async function run() {
     expected: [404],
   });
   assert(publicStudent.status === 404, 'Private member profile should not be public');
+
+  if (!canRunTrainerLifecycle) {
+    console.log('[SMOKE] member production smoke passed');
+    return;
+  }
 
   const publicTrainer = await request(`/profiles/${trainer.user.id}`);
   assert(publicTrainer.payload.id === trainer.user.id, 'Trainer public profile should be readable');
