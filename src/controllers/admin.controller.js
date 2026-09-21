@@ -178,6 +178,22 @@ async function insertAuditLog(executor, req, { action, entityType, entityId = nu
   );
 }
 
+async function hasAnotherActiveAdmin(client, userId) {
+  await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", ['tartelea:active-admin-guard']);
+  const result = await client.query(
+    `
+      SELECT COUNT(DISTINCT u.id)::int AS count
+      FROM users u
+      JOIN user_roles ur ON ur.user_id = u.id
+      WHERE ur.role::text = 'admin'
+        AND u.status = 'active'
+        AND u.id <> $1
+    `,
+    [userId]
+  );
+  return Number(result.rows[0]?.count || 0) > 0;
+}
+
 class AdminController {
   static async getStats(_req, res, next) {
     try {
@@ -447,6 +463,13 @@ class AdminController {
 
     try {
       await client.query('BEGIN');
+      if (existingUser.roles.includes('admin') && role !== 'admin') {
+        const canDemote = await hasAnotherActiveAdmin(client, req.params.id);
+        if (!canDemote) {
+          await client.query('ROLLBACK');
+          return error(res, 'At least one active admin must remain', 409, 'LAST_ACTIVE_ADMIN');
+        }
+      }
       await client.query('DELETE FROM user_roles WHERE user_id = $1', [req.params.id]);
       await client.query('INSERT INTO user_roles (user_id, role) VALUES ($1, $2)', [
         req.params.id,
@@ -496,6 +519,13 @@ class AdminController {
 
     try {
       await client.query('BEGIN');
+      if (existingUser.roles.includes('admin') && !roles.includes('admin')) {
+        const canDemote = await hasAnotherActiveAdmin(client, req.params.id);
+        if (!canDemote) {
+          await client.query('ROLLBACK');
+          return error(res, 'At least one active admin must remain', 409, 'LAST_ACTIVE_ADMIN');
+        }
+      }
       await client.query('DELETE FROM user_roles WHERE user_id = $1', [req.params.id]);
 
       for (const role of roles) {
@@ -561,15 +591,21 @@ class AdminController {
       return error(res, 'User not found', 404, 'USER_NOT_FOUND');
     }
 
+    const client = await db.connect();
     try {
-      await db.query('UPDATE users SET status = $1, updated_at = NOW() WHERE id = $2', [
+      await client.query('BEGIN');
+      if (existingUser.roles.includes('admin') && status !== 'active') {
+        const canDeactivate = await hasAnotherActiveAdmin(client, req.params.id);
+        if (!canDeactivate) {
+          await client.query('ROLLBACK');
+          return error(res, 'At least one active admin must remain', 409, 'LAST_ACTIVE_ADMIN');
+        }
+      }
+      await client.query('UPDATE users SET status = $1, updated_at = NOW() WHERE id = $2', [
         status,
         req.params.id,
       ]);
-
-      const user = await fetchUserById(req.params.id);
-
-      await insertAuditLog(db, req, {
+      await insertAuditLog(client, req, {
         action: 'user.status.updated',
         entityType: 'user',
         entityId: req.params.id,
@@ -579,10 +615,15 @@ class AdminController {
           reason: req.body?.reason || null,
         },
       });
+      await client.query('COMMIT');
 
+      const user = await fetchUserById(req.params.id);
       return success(res, { user }, `User status updated to ${status}`);
     } catch (err) {
+      await client.query('ROLLBACK');
       next(err);
+    } finally {
+      client.release();
     }
   }
 
@@ -595,6 +636,13 @@ class AdminController {
     const client = await db.connect();
     try {
       await client.query('BEGIN');
+      if (existingUser.roles.includes('admin')) {
+        const canDemote = await hasAnotherActiveAdmin(client, req.params.id);
+        if (!canDemote) {
+          await client.query('ROLLBACK');
+          return error(res, 'At least one active admin must remain', 409, 'LAST_ACTIVE_ADMIN');
+        }
+      }
       // Set role to trainer
       await client.query('DELETE FROM user_roles WHERE user_id = $1', [req.params.id]);
       await client.query('INSERT INTO user_roles (user_id, role) VALUES ($1, $2)', [
