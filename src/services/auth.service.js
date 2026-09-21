@@ -696,7 +696,7 @@ class AuthService {
   }
 
   static _isConfiguredTrainerEmail(email) {
-    if (!email) {
+    if (!email || !env.ALLOW_TRAINER_EMAIL_BOOTSTRAP) {
       return false;
     }
     return configuredTrainerEmails.has(normalizeEmail(email));
