@@ -670,7 +670,8 @@ class AdminController {
           user_id: subscription.user_id,
           plan_code: subscription.plan_code,
           source: subscription.source,
-          metadata: subscription.metadata || {},
+          provider: subscription.provider || null,
+          provider_reference: subscription.provider_reference || null,
         },
       });
 
