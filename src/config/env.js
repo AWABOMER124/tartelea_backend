@@ -86,11 +86,16 @@ const productionSafeEnvSchema = envSchema.superRefine((data, ctx) => {
     });
   }
 
-  if (data.ALLOWED_ORIGINS.split(',').map((value) => value.trim()).includes('*')) {
+  const allowedOrigins = data.ALLOWED_ORIGINS
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (allowedOrigins.length === 0 || allowedOrigins.includes('*')) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['ALLOWED_ORIGINS'],
-      message: 'Wildcard CORS origins are not allowed in production.',
+      message: 'Production ALLOWED_ORIGINS must be an explicit non-wildcard allowlist.',
     });
   }
 
