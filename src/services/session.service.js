@@ -190,6 +190,10 @@ function mapSessionSummary(row, access, counts = {}) {
     category: row.category || 'community',
     image_url: row.image_url || null,
     price: Number(row.price) || 0,
+    duration_minutes: Number(row.duration_minutes) || 30,
+    max_participants: Number(row.max_participants) || 50,
+    access_type: row.access_type || 'public',
+    is_approved: Boolean(row.is_approved),
     speaker_count: counts.speakers?.length || 0,
     moderator_count: counts.moderators?.length || 0,
     speakers: counts.speakers || [],
@@ -709,6 +713,44 @@ class SessionService {
         session: mapSessionSummary(refreshedRow, refreshedAccess, counts),
         room: mapRoomSummary(refreshedRow, refreshedAccess, counts),
         access: refreshedAccess,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  static async deleteSession({ reqUser, sessionId }) {
+    const user = normalizeUser(reqUser);
+    if (!user) {
+      throw httpError(401, 'Authentication required', 'UNAUTHORIZED');
+    }
+
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
+      const row = await getSessionRowById(client, sessionId, user.id);
+      if (!row) {
+        throw httpError(404, 'Session not found', 'SESSION_NOT_FOUND');
+      }
+
+      if (row.host_id !== user.id && !isPrivilegedSystemUser(user)) {
+        throw httpError(403, 'Only the host or a privileged moderator can delete this session', 'SESSION_DELETE_DENIED');
+      }
+
+      if (deriveSessionStatus(row) === 'live') {
+        throw httpError(409, 'End the live session before deleting it', 'SESSION_DELETE_LIVE_DENIED');
+      }
+
+      await client.query('DELETE FROM rooms WHERE id = $1', [sessionId]);
+      await client.query('COMMIT');
+
+      return {
+        id: sessionId,
+        deleted: true,
       };
     } catch (error) {
       await client.query('ROLLBACK');
