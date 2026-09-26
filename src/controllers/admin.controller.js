@@ -23,6 +23,7 @@ const ALLOWED_CONTENT_CATEGORIES = [
   'islamic_awareness',
 ];
 const ALLOWED_PINNED_ENTITY_TYPES = ['content', 'post', 'workshop', 'room', 'course'];
+const ALLOWED_DEPTH_LEVELS = ['beginner', 'intermediate', 'advanced'];
 
 function toInt(value, fallback, { min = 1, max = 100 } = {}) {
   const parsed = Number.parseInt(String(value ?? ''), 10);
@@ -50,6 +51,14 @@ function toBoolean(value, fallback = false) {
   }
 
   return fallback;
+}
+
+function toNumber(value, fallback = undefined, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
+  if (value === undefined) return fallback;
+  if (value === null || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, min), max);
 }
 
 function escapeLike(value) {
@@ -97,6 +106,21 @@ function normalizeContentCategory(category) {
 function normalizeContentAccessTier(accessTier) {
   const normalized = String(accessTier || '').trim().toLowerCase();
   return ALLOWED_CONTENT_ACCESS_TIERS.includes(normalized) ? normalized : null;
+}
+
+function normalizeDepthLevel(value) {
+  if (typeof value === 'number' || /^\d+$/.test(String(value || ''))) {
+    const numeric = Number(value);
+    return numeric >= 3 ? 'advanced' : numeric === 2 ? 'intermediate' : 'beginner';
+  }
+  const normalized = String(value || '').trim().toLowerCase();
+  return ALLOWED_DEPTH_LEVELS.includes(normalized) ? normalized : null;
+}
+
+function optionalText(value) {
+  if (value === undefined) return undefined;
+  const normalized = String(value || '').trim();
+  return normalized || null;
 }
 
 function normalizePinnedEntityType(entityType) {
@@ -1025,19 +1049,19 @@ class AdminController {
           SELECT
             p.*,
             pr.full_name AS author_name,
-            COUNT(DISTINCT c.id)::int AS comments_count
-          FROM posts p
+            ctx.title AS category,
+            p.reactions_count AS likes_count
+          FROM community_posts p
           LEFT JOIN profiles pr ON pr.id = p.author_id
-          LEFT JOIN comments c ON c.post_id = p.id
+          LEFT JOIN community_contexts ctx ON ctx.id = p.primary_context_id
           ${whereClause}
-          GROUP BY p.id, pr.full_name
           ORDER BY p.created_at DESC
           LIMIT $${params.length}
         `,
         params
       );
 
-      return success(res, { posts: result.rows });
+      return success(res, { posts: result.rows.filter((post) => post.status !== 'deleted') });
     } catch (err) {
       next(err);
     }
@@ -1045,9 +1069,10 @@ class AdminController {
 
   static async deletePost(req, res, next) {
     try {
-      const result = await db.query('DELETE FROM posts WHERE id = $1 RETURNING id, title, category', [
-        req.params.id,
-      ]);
+      const result = await db.query(
+        "UPDATE community_posts SET status = 'deleted', deleted_at = NOW(), deleted_by = $2, updated_at = NOW() WHERE id = $1 RETURNING id, title, status",
+        [req.params.id, req.user?.id || null]
+      );
       if (result.rowCount === 0) {
         return error(res, 'Post not found', 404, 'POST_NOT_FOUND');
       }
@@ -1060,6 +1085,50 @@ class AdminController {
       });
 
       return success(res, { id: req.params.id }, 'Post deleted successfully');
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async updatePost(req, res, next) {
+    try {
+      const existing = await db.query('SELECT * FROM community_posts WHERE id = $1', [req.params.id]);
+      if (existing.rowCount === 0) {
+        return error(res, 'Post not found', 404, 'POST_NOT_FOUND');
+      }
+
+      const payload = {
+        title: optionalText(req.body?.title),
+        body: optionalText(req.body?.body),
+      };
+
+      if (payload.body === null) {
+        return error(res, 'Post body is required', 400, 'INVALID_POST_PAYLOAD');
+      }
+
+      const { fields, values } = buildUpdateStatement(payload, ['title', 'body']);
+      if (fields.length === 0) {
+        return success(res, { post: existing.rows[0] });
+      }
+
+      fields.push('edited_at = NOW()', 'updated_at = NOW()');
+      values.push(req.params.id);
+      const result = await db.query(
+        `UPDATE community_posts SET ${fields.join(', ')} WHERE id = $${values.length} RETURNING *`,
+        values
+      );
+
+      await insertAuditLog(db, req, {
+        action: 'post.updated',
+        entityType: 'post',
+        entityId: req.params.id,
+        details: {
+          changed_fields: fields.map((field) => field.split(' = ')[0]),
+          title: result.rows[0].title,
+        },
+      });
+
+      return success(res, { post: result.rows[0] }, 'Post updated successfully');
     } catch (err) {
       next(err);
     }
@@ -1116,6 +1185,53 @@ class AdminController {
     }
   }
 
+  static async updateCourse(req, res, next) {
+    try {
+      const existing = await db.query('SELECT * FROM trainer_courses WHERE id = $1', [req.params.id]);
+      if (existing.rowCount === 0) return error(res, 'Course not found', 404, 'COURSE_NOT_FOUND');
+
+      const payload = {
+        title: optionalText(req.body?.title),
+        description: optionalText(req.body?.description),
+        category: req.body?.category === undefined ? undefined : normalizeContentCategory(req.body.category),
+        thumbnail_url: optionalText(req.body?.thumbnail_url),
+        media_url: optionalText(req.body?.media_url),
+        url: optionalText(req.body?.url),
+        type: req.body?.type === undefined ? undefined : normalizeContentType(req.body.type),
+        depth_level: req.body?.depth_level === undefined ? undefined : normalizeDepthLevel(req.body.depth_level),
+        price: toNumber(req.body?.price, undefined, { min: 0, max: 1000000 }),
+      };
+
+      if (payload.title === null ||
+          (req.body?.category !== undefined && !payload.category) ||
+          (req.body?.type !== undefined && !payload.type) ||
+          (req.body?.depth_level !== undefined && !payload.depth_level)) {
+        return error(res, 'Invalid course payload', 400, 'INVALID_COURSE_PAYLOAD');
+      }
+
+      const { fields, values } = buildUpdateStatement(payload, [
+        'title', 'description', 'category', 'thumbnail_url', 'media_url', 'url', 'type', 'depth_level', 'price',
+      ]);
+      if (fields.length === 0) return success(res, { course: existing.rows[0] });
+
+      fields.push('updated_at = NOW()');
+      values.push(req.params.id);
+      const result = await db.query(
+        `UPDATE trainer_courses SET ${fields.join(', ')} WHERE id = $${values.length} RETURNING *`,
+        values
+      );
+      await insertAuditLog(db, req, {
+        action: 'course.updated',
+        entityType: 'course',
+        entityId: req.params.id,
+        details: { changed_fields: fields.map((field) => field.split(' = ')[0]), title: result.rows[0].title },
+      });
+      return success(res, { course: result.rows[0] }, 'Course updated successfully');
+    } catch (err) {
+      next(err);
+    }
+  }
+
   static async listWorkshops(_req, res, next) {
     try {
       const result = await db.query(`
@@ -1165,6 +1281,35 @@ class AdminController {
     } catch (err) {
       next(err);
     }
+  }
+
+  static async updateWorkshop(req, res, next) {
+    try {
+      const existing = await db.query('SELECT * FROM workshops WHERE id = $1', [req.params.id]);
+      if (existing.rowCount === 0) return error(res, 'Workshop not found', 404, 'WORKSHOP_NOT_FOUND');
+      const payload = {
+        title: optionalText(req.body?.title), description: optionalText(req.body?.description),
+        category: req.body?.category === undefined ? undefined : normalizeContentCategory(req.body.category),
+        scheduled_at: optionalText(req.body?.scheduled_at), image_url: optionalText(req.body?.image_url),
+        duration_minutes: toNumber(req.body?.duration_minutes, undefined, { min: 1, max: 1440 }),
+        price: toNumber(req.body?.price, undefined, { min: 0, max: 1000000 }),
+        max_participants: toNumber(req.body?.max_participants, undefined, { min: 1, max: 100000 }),
+      };
+      if (payload.title === null || (req.body?.category !== undefined && !payload.category)) {
+        return error(res, 'Invalid workshop payload', 400, 'INVALID_WORKSHOP_PAYLOAD');
+      }
+      const { fields, values } = buildUpdateStatement(payload, [
+        'title', 'description', 'category', 'scheduled_at', 'image_url', 'duration_minutes', 'price', 'max_participants',
+      ]);
+      if (fields.length === 0) return success(res, { workshop: existing.rows[0] });
+      fields.push('updated_at = NOW()'); values.push(req.params.id);
+      const result = await db.query(`UPDATE workshops SET ${fields.join(', ')} WHERE id = $${values.length} RETURNING *`, values);
+      await insertAuditLog(db, req, {
+        action: 'workshop.updated', entityType: 'workshop', entityId: req.params.id,
+        details: { changed_fields: fields.map((field) => field.split(' = ')[0]), title: result.rows[0].title },
+      });
+      return success(res, { workshop: result.rows[0] }, 'Workshop updated successfully');
+    } catch (err) { next(err); }
   }
 
   static async listRooms(_req, res, next) {
@@ -1230,6 +1375,36 @@ class AdminController {
     } catch (err) {
       next(err);
     }
+  }
+
+  static async updateRoom(req, res, next) {
+    try {
+      const existing = await db.query('SELECT * FROM rooms WHERE id = $1', [req.params.id]);
+      if (existing.rowCount === 0) return error(res, 'Room not found', 404, 'ROOM_NOT_FOUND');
+      const payload = {
+        title: optionalText(req.body?.title), description: optionalText(req.body?.description),
+        category: req.body?.category === undefined ? undefined : normalizeContentCategory(req.body.category),
+        scheduled_at: optionalText(req.body?.scheduled_at), image_url: optionalText(req.body?.image_url),
+        duration_minutes: toNumber(req.body?.duration_minutes, undefined, { min: 1, max: 1440 }),
+        price: toNumber(req.body?.price, undefined, { min: 0, max: 1000000 }),
+        max_participants: toNumber(req.body?.max_participants, undefined, { min: 1, max: 100000 }),
+        access_type: optionalText(req.body?.access_type),
+      };
+      if (payload.title === null || (req.body?.category !== undefined && !payload.category)) {
+        return error(res, 'Invalid room payload', 400, 'INVALID_ROOM_PAYLOAD');
+      }
+      const { fields, values } = buildUpdateStatement(payload, [
+        'title', 'description', 'category', 'scheduled_at', 'image_url', 'duration_minutes', 'price', 'max_participants', 'access_type',
+      ]);
+      if (fields.length === 0) return success(res, { room: existing.rows[0] });
+      fields.push('updated_at = NOW()'); values.push(req.params.id);
+      const result = await db.query(`UPDATE rooms SET ${fields.join(', ')} WHERE id = $${values.length} RETURNING *`, values);
+      await insertAuditLog(db, req, {
+        action: 'room.updated', entityType: 'room', entityId: req.params.id,
+        details: { changed_fields: fields.map((field) => field.split(' = ')[0]), title: result.rows[0].title },
+      });
+      return success(res, { room: result.rows[0] }, 'Room updated successfully');
+    } catch (err) { next(err); }
   }
 
   static async listPinned(_req, res, next) {
