@@ -1094,6 +1094,50 @@ class AdminController {
     }
   }
 
+  static async updatePost(req, res, next) {
+    try {
+      const existing = await db.query('SELECT * FROM community_posts WHERE id = $1', [req.params.id]);
+      if (existing.rowCount === 0) {
+        return error(res, 'Post not found', 404, 'POST_NOT_FOUND');
+      }
+
+      const payload = {
+        title: optionalText(req.body?.title),
+        body: optionalText(req.body?.body),
+      };
+
+      if (payload.body === null) {
+        return error(res, 'Post body is required', 400, 'INVALID_POST_PAYLOAD');
+      }
+
+      const { fields, values } = buildUpdateStatement(payload, ['title', 'body']);
+      if (fields.length === 0) {
+        return success(res, { post: existing.rows[0] });
+      }
+
+      fields.push('edited_at = NOW()', 'updated_at = NOW()');
+      values.push(req.params.id);
+      const result = await db.query(
+        `UPDATE community_posts SET ${fields.join(', ')} WHERE id = $${values.length} RETURNING *`,
+        values
+      );
+
+      await insertAuditLog(db, req, {
+        action: 'post.updated',
+        entityType: 'post',
+        entityId: req.params.id,
+        details: {
+          changed_fields: fields.map((field) => field.split(' = ')[0]),
+          title: result.rows[0].title,
+        },
+      });
+
+      return success(res, { post: result.rows[0] }, 'Post updated successfully');
+    } catch (err) {
+      next(err);
+    }
+  }
+
   static async listCourses(_req, res, next) {
     try {
       const result = await db.query(`
