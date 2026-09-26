@@ -1287,6 +1287,35 @@ class AdminController {
     }
   }
 
+  static async updateWorkshop(req, res, next) {
+    try {
+      const existing = await db.query('SELECT * FROM workshops WHERE id = $1', [req.params.id]);
+      if (existing.rowCount === 0) return error(res, 'Workshop not found', 404, 'WORKSHOP_NOT_FOUND');
+      const payload = {
+        title: optionalText(req.body?.title), description: optionalText(req.body?.description),
+        category: req.body?.category === undefined ? undefined : normalizeContentCategory(req.body.category),
+        scheduled_at: optionalText(req.body?.scheduled_at), image_url: optionalText(req.body?.image_url),
+        duration_minutes: toNumber(req.body?.duration_minutes, undefined, { min: 1, max: 1440 }),
+        price: toNumber(req.body?.price, undefined, { min: 0, max: 1000000 }),
+        max_participants: toNumber(req.body?.max_participants, undefined, { min: 1, max: 100000 }),
+      };
+      if (payload.title === null || (req.body?.category !== undefined && !payload.category)) {
+        return error(res, 'Invalid workshop payload', 400, 'INVALID_WORKSHOP_PAYLOAD');
+      }
+      const { fields, values } = buildUpdateStatement(payload, [
+        'title', 'description', 'category', 'scheduled_at', 'image_url', 'duration_minutes', 'price', 'max_participants',
+      ]);
+      if (fields.length === 0) return success(res, { workshop: existing.rows[0] });
+      fields.push('updated_at = NOW()'); values.push(req.params.id);
+      const result = await db.query(`UPDATE workshops SET ${fields.join(', ')} WHERE id = $${values.length} RETURNING *`, values);
+      await insertAuditLog(db, req, {
+        action: 'workshop.updated', entityType: 'workshop', entityId: req.params.id,
+        details: { changed_fields: fields.map((field) => field.split(' = ')[0]), title: result.rows[0].title },
+      });
+      return success(res, { workshop: result.rows[0] }, 'Workshop updated successfully');
+    } catch (err) { next(err); }
+  }
+
   static async listRooms(_req, res, next) {
     try {
       const [roomsResult, liveRoomsResult] = await Promise.all([
@@ -1350,6 +1379,36 @@ class AdminController {
     } catch (err) {
       next(err);
     }
+  }
+
+  static async updateRoom(req, res, next) {
+    try {
+      const existing = await db.query('SELECT * FROM rooms WHERE id = $1', [req.params.id]);
+      if (existing.rowCount === 0) return error(res, 'Room not found', 404, 'ROOM_NOT_FOUND');
+      const payload = {
+        title: optionalText(req.body?.title), description: optionalText(req.body?.description),
+        category: req.body?.category === undefined ? undefined : normalizeContentCategory(req.body.category),
+        scheduled_at: optionalText(req.body?.scheduled_at), image_url: optionalText(req.body?.image_url),
+        duration_minutes: toNumber(req.body?.duration_minutes, undefined, { min: 1, max: 1440 }),
+        price: toNumber(req.body?.price, undefined, { min: 0, max: 1000000 }),
+        max_participants: toNumber(req.body?.max_participants, undefined, { min: 1, max: 100000 }),
+        access_type: optionalText(req.body?.access_type),
+      };
+      if (payload.title === null || (req.body?.category !== undefined && !payload.category)) {
+        return error(res, 'Invalid room payload', 400, 'INVALID_ROOM_PAYLOAD');
+      }
+      const { fields, values } = buildUpdateStatement(payload, [
+        'title', 'description', 'category', 'scheduled_at', 'image_url', 'duration_minutes', 'price', 'max_participants', 'access_type',
+      ]);
+      if (fields.length === 0) return success(res, { room: existing.rows[0] });
+      fields.push('updated_at = NOW()'); values.push(req.params.id);
+      const result = await db.query(`UPDATE rooms SET ${fields.join(', ')} WHERE id = $${values.length} RETURNING *`, values);
+      await insertAuditLog(db, req, {
+        action: 'room.updated', entityType: 'room', entityId: req.params.id,
+        details: { changed_fields: fields.map((field) => field.split(' = ')[0]), title: result.rows[0].title },
+      });
+      return success(res, { room: result.rows[0] }, 'Room updated successfully');
+    } catch (err) { next(err); }
   }
 
   static async listPinned(_req, res, next) {
