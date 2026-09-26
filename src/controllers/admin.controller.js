@@ -23,6 +23,7 @@ const ALLOWED_CONTENT_CATEGORIES = [
   'islamic_awareness',
 ];
 const ALLOWED_PINNED_ENTITY_TYPES = ['content', 'post', 'workshop', 'room', 'course'];
+const ALLOWED_DEPTH_LEVELS = ['beginner', 'intermediate', 'advanced'];
 
 function toInt(value, fallback, { min = 1, max = 100 } = {}) {
   const parsed = Number.parseInt(String(value ?? ''), 10);
@@ -52,8 +53,18 @@ function toBoolean(value, fallback = false) {
   return fallback;
 }
 
+function toNumber(value, fallback = undefined, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
+  if (value === undefined) return fallback;
+  if (value === null || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, min), max);
+}
+
 function escapeLike(value) {
+  return value.replace(/[\\%_]/g, '\\function escapeLike(value) {
   return value.replace(/[\\%_]/g, '\\$&');
+}');
 }
 
 function normalizeUserRoleInput(role) {
@@ -97,6 +108,21 @@ function normalizeContentCategory(category) {
 function normalizeContentAccessTier(accessTier) {
   const normalized = String(accessTier || '').trim().toLowerCase();
   return ALLOWED_CONTENT_ACCESS_TIERS.includes(normalized) ? normalized : null;
+}
+
+function normalizeDepthLevel(value) {
+  if (typeof value === 'number' || /^\d+$/.test(String(value || ''))) {
+    const numeric = Number(value);
+    return numeric >= 3 ? 'advanced' : numeric === 2 ? 'intermediate' : 'beginner';
+  }
+  const normalized = String(value || '').trim().toLowerCase();
+  return ALLOWED_DEPTH_LEVELS.includes(normalized) ? normalized : null;
+}
+
+function optionalText(value) {
+  if (value === undefined) return undefined;
+  const normalized = String(value || '').trim();
+  return normalized || null;
 }
 
 function normalizePinnedEntityType(entityType) {
