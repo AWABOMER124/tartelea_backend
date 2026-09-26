@@ -1053,12 +1053,12 @@ class AdminController {
           SELECT
             p.*,
             pr.full_name AS author_name,
-            COUNT(DISTINCT c.id)::int AS comments_count
-          FROM posts p
+            ctx.title AS category,
+            p.reactions_count AS likes_count
+          FROM community_posts p
           LEFT JOIN profiles pr ON pr.id = p.author_id
-          LEFT JOIN comments c ON c.post_id = p.id
+          LEFT JOIN community_contexts ctx ON ctx.id = p.primary_context_id
           ${whereClause}
-          GROUP BY p.id, pr.full_name
           ORDER BY p.created_at DESC
           LIMIT $${params.length}
         `,
