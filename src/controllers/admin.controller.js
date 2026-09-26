@@ -1189,6 +1189,53 @@ class AdminController {
     }
   }
 
+  static async updateCourse(req, res, next) {
+    try {
+      const existing = await db.query('SELECT * FROM trainer_courses WHERE id = $1', [req.params.id]);
+      if (existing.rowCount === 0) return error(res, 'Course not found', 404, 'COURSE_NOT_FOUND');
+
+      const payload = {
+        title: optionalText(req.body?.title),
+        description: optionalText(req.body?.description),
+        category: req.body?.category === undefined ? undefined : normalizeContentCategory(req.body.category),
+        thumbnail_url: optionalText(req.body?.thumbnail_url),
+        media_url: optionalText(req.body?.media_url),
+        url: optionalText(req.body?.url),
+        type: req.body?.type === undefined ? undefined : normalizeContentType(req.body.type),
+        depth_level: req.body?.depth_level === undefined ? undefined : normalizeDepthLevel(req.body.depth_level),
+        price: toNumber(req.body?.price, undefined, { min: 0, max: 1000000 }),
+      };
+
+      if (payload.title === null ||
+          (req.body?.category !== undefined && !payload.category) ||
+          (req.body?.type !== undefined && !payload.type) ||
+          (req.body?.depth_level !== undefined && !payload.depth_level)) {
+        return error(res, 'Invalid course payload', 400, 'INVALID_COURSE_PAYLOAD');
+      }
+
+      const { fields, values } = buildUpdateStatement(payload, [
+        'title', 'description', 'category', 'thumbnail_url', 'media_url', 'url', 'type', 'depth_level', 'price',
+      ]);
+      if (fields.length === 0) return success(res, { course: existing.rows[0] });
+
+      fields.push('updated_at = NOW()');
+      values.push(req.params.id);
+      const result = await db.query(
+        `UPDATE trainer_courses SET ${fields.join(', ')} WHERE id = $${values.length} RETURNING *`,
+        values
+      );
+      await insertAuditLog(db, req, {
+        action: 'course.updated',
+        entityType: 'course',
+        entityId: req.params.id,
+        details: { changed_fields: fields.map((field) => field.split(' = ')[0]), title: result.rows[0].title },
+      });
+      return success(res, { course: result.rows[0] }, 'Course updated successfully');
+    } catch (err) {
+      next(err);
+    }
+  }
+
   static async listWorkshops(_req, res, next) {
     try {
       const result = await db.query(`
