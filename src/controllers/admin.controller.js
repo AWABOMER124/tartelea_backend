@@ -62,11 +62,7 @@ function toNumber(value, fallback = undefined, { min = 0, max = Number.MAX_SAFE_
 }
 
 function escapeLike(value) {
-  return value.replace(/[\\%_]/g, '\\function escapeLike(value) {
-  return value.replace(/[\\%_]/g, '\\function escapeLike(value) {
   return value.replace(/[\\%_]/g, '\\$&');
-}');
-}');
 }
 
 function normalizeUserRoleInput(role) {
