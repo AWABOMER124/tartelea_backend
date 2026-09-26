@@ -1065,7 +1065,7 @@ class AdminController {
         params
       );
 
-      return success(res, { posts: result.rows });
+      return success(res, { posts: result.rows.filter((post) => post.status !== 'deleted') });
     } catch (err) {
       next(err);
     }
