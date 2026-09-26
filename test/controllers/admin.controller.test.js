@@ -203,3 +203,62 @@ test('updatePinned updates pinned fields and records audit log', async () => {
   assert.equal(res.state.body.pinned.entity_type, 'workshop');
   assert.equal(res.state.body.pinned.sort_order, 4);
 });
+
+test('updateCourse edits user-visible course fields and records an audit entry', async () => {
+  let callCount = 0;
+  db.query = async (sql, params) => {
+    callCount += 1;
+    if (callCount === 1) {
+      assert.match(sql, /SELECT \* FROM trainer_courses/i);
+      return { rowCount: 1, rows: [{ id: 'course-1', title: 'قديم' }] };
+    }
+    if (callCount === 2) {
+      assert.match(sql, /UPDATE trainer_courses SET/i);
+      assert.equal(params[0], 'عنوان جديد');
+      assert.equal(params[1], 'وصف كامل');
+      assert.equal(params.at(-1), 'course-1');
+      return { rowCount: 1, rows: [{ id: 'course-1', title: 'عنوان جديد', description: 'وصف كامل' }] };
+    }
+    assert.equal(params[2], 'course.updated');
+    return { rowCount: 1 };
+  };
+
+  const req = {
+    params: { id: 'course-1' },
+    body: { title: 'عنوان جديد', description: 'وصف كامل', category: 'quran', type: 'video', depth_level: 'beginner', price: 10 },
+    user: { id: 'admin-1', role: 'admin', roles: ['admin'] },
+    headers: {},
+  };
+  const res = createRes();
+  await AdminController.updateCourse(req, res, (err) => { throw err; });
+  assert.equal(res.state.statusCode, 200);
+  assert.equal(res.state.body.course.title, 'عنوان جديد');
+});
+
+test('updatePost edits the community post text without changing its author or context', async () => {
+  let callCount = 0;
+  db.query = async (sql, params) => {
+    callCount += 1;
+    if (callCount === 1) {
+      assert.match(sql, /community_posts/i);
+      return { rowCount: 1, rows: [{ id: 'post-1', title: 'قديم', body: 'نص قديم' }] };
+    }
+    if (callCount === 2) {
+      assert.match(sql, /UPDATE community_posts SET/i);
+      assert.deepEqual(params.slice(0, 2), ['عنوان جديد', 'النص الكامل الجديد']);
+      return { rowCount: 1, rows: [{ id: 'post-1', title: 'عنوان جديد', body: 'النص الكامل الجديد' }] };
+    }
+    assert.equal(params[2], 'post.updated');
+    return { rowCount: 1 };
+  };
+
+  const req = {
+    params: { id: 'post-1' },
+    body: { title: 'عنوان جديد', body: 'النص الكامل الجديد' },
+    user: { id: 'admin-1', role: 'admin', roles: ['admin'] },
+    headers: {},
+  };
+  const res = createRes();
+  await AdminController.updatePost(req, res, (err) => { throw err; });
+  assert.equal(res.state.body.post.body, 'النص الكامل الجديد');
+});
