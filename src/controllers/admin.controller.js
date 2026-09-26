@@ -1073,9 +1073,10 @@ class AdminController {
 
   static async deletePost(req, res, next) {
     try {
-      const result = await db.query('DELETE FROM posts WHERE id = $1 RETURNING id, title, category', [
-        req.params.id,
-      ]);
+      const result = await db.query(
+        "UPDATE community_posts SET status = 'deleted', deleted_at = NOW(), deleted_by = $2, updated_at = NOW() WHERE id = $1 RETURNING id, title, status",
+        [req.params.id, req.user?.id || null]
+      );
       if (result.rowCount === 0) {
         return error(res, 'Post not found', 404, 'POST_NOT_FOUND');
       }
