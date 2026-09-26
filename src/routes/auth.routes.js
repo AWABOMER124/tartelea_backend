@@ -30,6 +30,7 @@ const recoveryLimiter = rateLimit({
   message: { success: false, message: 'Too many recovery attempts. Please try again later.' },
 });
 
+router.get('/config', AuthController.config);
 router.post('/signup', authAttemptLimiter, validate(signupSchema), AuthController.signup);
 router.post('/verify-email', recoveryLimiter, validate(verifyEmailSchema), AuthController.verifyEmail);
 router.post('/login', authAttemptLimiter, validate(loginSchema), AuthController.login);
