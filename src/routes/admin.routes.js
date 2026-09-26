@@ -52,6 +52,7 @@ router.post('/subscriptions/revoke', requireAdmin, validate(revokeSubscriptionSc
 router.get('/community/reports', AdminController.listReports);
 router.post('/community/reports/:id/resolve', validate(resolveReportSchema), AdminController.resolveReport);
 router.get('/posts', AdminController.listPosts);
+router.put('/posts/:id', requireAdmin, validate(idParamSchema), AdminController.updatePost);
 router.delete('/posts/:id', requireAdmin, validate(idParamSchema), AdminController.deletePost);
 router.post('/community/posts/:id/hide', AdminController.hidePost);
 router.post('/community/posts/:id/unhide', validate(idParamSchema), AdminController.unhidePost);
@@ -71,10 +72,13 @@ router.post('/sessions/:id/end', validate(endSessionSchema), AdminController.end
 
 // --- Approvals (Workshops, Courses, Rooms) ---
 router.get('/courses', AdminController.listCourses);
+router.put('/courses/:id', requireAdmin, validate(idParamSchema), AdminController.updateCourse);
 router.patch('/courses/:id/approval', requireAdmin, validate(approvalSchema), AdminController.updateCourseApproval);
 router.get('/workshops', AdminController.listWorkshops);
+router.put('/workshops/:id', requireAdmin, validate(idParamSchema), AdminController.updateWorkshop);
 router.patch('/workshops/:id/approval', requireAdmin, validate(approvalSchema), AdminController.updateWorkshopApproval);
 router.get('/rooms', AdminController.listRooms);
+router.put('/rooms/:id', requireAdmin, validate(idParamSchema), AdminController.updateRoom);
 router.patch('/rooms/:id/approval', requireAdmin, validate(approvalSchema), AdminController.updateRoomApproval);
 
 // --- Pinned Content ---
