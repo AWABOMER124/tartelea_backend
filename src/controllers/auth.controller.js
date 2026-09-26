@@ -1,6 +1,7 @@
 const AuthService = require('../services/auth.service');
 const SubscriptionService = require('../services/subscription.service');
 const logger = require('../utils/logger');
+const env = require('../config/env');
 const { success } = require('../utils/response');
 const { buildAuthEnvelope, buildSessionEnvelope } = require('../utils/auth-contract');
 
@@ -22,6 +23,17 @@ async function safeGetSubscriptionContract(user) {
 }
 
 class AuthController {
+  static async config(_req, res, next) {
+    try {
+      return success(res, {
+        googleClientId: env.GOOGLE_CLIENT_ID || null,
+        googleEnabled: Boolean(env.GOOGLE_CLIENT_ID),
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   static async signup(req, res, next) {
     try {
       const result = await AuthService.signup(req.body);
