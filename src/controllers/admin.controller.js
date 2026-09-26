@@ -305,9 +305,10 @@ class AdminController {
             SELECT
               created_at,
               'post' AS entity_type,
-              title,
+              COALESCE(title, LEFT(body, 80), 'منشور مجتمع') AS title,
               'نشاط جديد في المجتمع' AS description
-            FROM posts
+            FROM community_posts
+            WHERE status <> 'deleted'
 
             UNION ALL
 
